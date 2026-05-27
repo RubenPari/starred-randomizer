@@ -26,6 +26,8 @@
   --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e0e7ff 100%);
   --spinner-border: rgba(0, 0, 0, 0.15);
   --spinner-top: var(--color-brand);
+  --skeleton-base: #e5e7eb;
+  --skeleton-shine: #f3f4f6;
 }
 
 :root.dark {
@@ -44,6 +46,8 @@
   --bg-gradient: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
   --spinner-border: rgba(255, 255, 255, 0.3);
   --spinner-top: white;
+  --skeleton-base: #2a2a3e;
+  --skeleton-shine: #363650;
 }
 
 body {
@@ -63,8 +67,49 @@ body {
   to { transform: rotate(360deg); }
 }
 
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes shuffle-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(0.98); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.2); }
+  50% { box-shadow: 0 0 0 8px rgba(124, 58, 237, 0); }
+}
+
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+.animate-shuffle-pulse {
+  animation: shuffle-pulse 0.15s ease-in-out;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
 }
 
 .spinner {
@@ -75,4 +120,30 @@ body {
   border-top-color: var(--spinner-top);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--skeleton-base) 0%,
+    var(--skeleton-shine) 50%,
+    var(--skeleton-base) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-scale-in,
+  .animate-slide-in-right,
+  .animate-shuffle-pulse,
+  .animate-glow-pulse,
+  .skeleton {
+    animation: none !important;
+  }
+  .spinner {
+    animation: spin 1.5s linear infinite;
+  }
 }
