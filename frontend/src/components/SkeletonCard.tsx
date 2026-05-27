@@ -18,16 +18,3 @@ export function SkeletonCard() {
     </div>
   );
 }
-
-export function SkeletonFilters() {
-  return (
-    <div className="bg-surface/80 backdrop-blur rounded-xl p-5 border border-surface-3/50 shadow-lg">
-      <div className="skeleton h-4 w-24 mb-3" />
-      <div className="flex gap-3">
-        <div className="skeleton h-10 flex-1 rounded-lg" />
-        <div className="skeleton h-10 w-24 rounded-lg" />
-        <div className="skeleton h-10 w-32 rounded-lg" />
-      </div>
-    </div>
-  );
-}
