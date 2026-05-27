@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import axios, { AxiosError } from 'axios';
 import LanguageBadge from './components/LanguageBadge';
 import { SkeletonCard } from './components/SkeletonCard';
@@ -17,53 +17,26 @@ import {
   IconClock,
   IconCode,
 } from './components/Icons';
+import type { Repo, HistoryEntry } from './types';
+import { formatStars, timeAgo, formatTime, handleApiError } from './utils/format';
 
 const USERNAME = 'RubenPari';
 
-interface Repo {
-  full_name: string;
-  html_url: string;
-  description: string;
-  language: string | null;
-  stargazers_count: number;
-  topics: string[];
-  updated_at: string;
-  created_at: string;
-  owner: {
-    login: string;
-    avatar_url: string;
-    html_url: string;
-  };
-}
+function useTheme() {
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('theme');
+      return saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    }
+    return true;
+  });
 
-interface HistoryEntry {
-  repo: Repo;
-  timestamp: number;
-}
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
 
-function formatStars(count: number): string {
-  if (count >= 1000) {
-    return `${(count / 1000).toFixed(1)}k`;
-  }
-  return count.toString();
-}
-
-function timeAgo(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  if (seconds < 60) return 'ora';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
-  if (seconds < 2592000) return `${Math.floor(seconds / 86400)}g`;
-  if (seconds < 31536000) return `${Math.floor(seconds / 2592000)}m`;
-  return `${Math.floor(seconds / 31536000)}a`;
-}
-
-function formatTime(timestamp: number): string {
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  return { darkMode, toggleTheme: () => setDarkMode((d) => !d) };
 }
 
 function App() {
@@ -73,21 +46,10 @@ function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [darkMode, setDarkMode] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('theme');
-      return saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    }
-    return true;
-  });
+  const { darkMode, toggleTheme } = useTheme();
   const [shufflePhase, setShufflePhase] = useState(false);
   const [shuffledRepos, setShuffledRepos] = useState<Repo[]>([]);
   const resultRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode);
-    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
-  }, [darkMode]);
 
   const fetchStarred = async () => {
     setLoading(true);
@@ -99,21 +61,14 @@ function App() {
       const res = await axios.get<Repo[]>(`/api/starred/${USERNAME}`);
       setRepos(res.data);
     } catch (err: unknown) {
-      const error = err as AxiosError<{ error?: string }>;
-      if (error.response?.data?.error) {
-        setError(error.response.data.error);
-      } else if (error.code === 'ERR_NETWORK') {
-        setError('Impossibile connettersi al server. Verifica che il backend sia attivo.');
-      } else {
-        setError('Errore imprevisto. Riprova.');
-      }
+      setError(handleApiError(err));
       setRepos([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const getFilteredRepos = useCallback(() => {
+  const filteredRepos = useMemo(() => {
     return repos.filter((r) => {
       if (filters.language && r.language?.toLowerCase() !== filters.language.toLowerCase()) return false;
       if (filters.min_stars > 0 && r.stargazers_count < filters.min_stars) return false;
@@ -127,11 +82,10 @@ function App() {
     setShufflePhase(true);
     setShuffledRepos([]);
 
-    const filtered = getFilteredRepos();
     const shuffleCount = 6;
     for (let i = 0; i < shuffleCount; i++) {
-      const randomIdx = Math.floor(Math.random() * filtered.length);
-      setShuffledRepos([filtered[randomIdx]]);
+      const randomIdx = Math.floor(Math.random() * filteredRepos.length);
+      setShuffledRepos([filteredRepos[randomIdx]]);
       await new Promise((resolve) => setTimeout(resolve, 120));
     }
 
@@ -145,13 +99,11 @@ function App() {
         resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 100);
     } catch (err: unknown) {
-      const error = err as AxiosError<{ error?: string }>;
-      if (error.response?.data?.error) {
-        setError(error.response.data.error);
-      } else if (error.code === 'ERR_NETWORK') {
-        setError('Impossibile connettersi al server. Verifica che il backend sia attivo.');
+      const axiosError = err as AxiosError<{ error?: string }>;
+      if (axiosError.response?.data?.error) {
+        setError(axiosError.response.data.error);
       } else {
-        setError("Errore nell'estrazione del repository");
+        setError(handleApiError(err));
       }
     } finally {
       setLoading(false);
@@ -160,26 +112,28 @@ function App() {
     }
   };
 
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     setFilters({ language: '', min_stars: 0 });
-  };
+  }, []);
 
-  const clearHistory = () => {
+  const clearHistory = useCallback(() => {
     setHistory([]);
-  };
+  }, []);
 
-  const selectFromHistory = (entry: HistoryEntry) => {
+  const selectFromHistory = useCallback((entry: HistoryEntry) => {
     setRandomRepo(entry.repo);
     window.scrollTo({ top: resultRef.current?.offsetTop ?? 0, behavior: 'smooth' });
-  };
+  }, []);
 
   useEffect(() => {
     fetchStarred();
   }, []);
 
-  const languages = Array.from(new Set(repos.map((r) => r.language).filter((l): l is string => Boolean(l)))).sort();
+  const languages = useMemo(
+    () => Array.from(new Set(repos.map((r) => r.language).filter((l): l is string => Boolean(l)))).sort(),
+    [repos]
+  );
   const maxStars = repos.length > 0 ? Math.max(...repos.map((r) => r.stargazers_count)) : 100;
-  const filteredCount = getFilteredRepos().length;
 
   return (
     <div className="min-h-screen p-4 sm:p-6 md:p-8">
@@ -188,7 +142,7 @@ function App() {
         <header className="text-center animate-fade-in">
           <div className="flex items-center justify-end mb-3">
             <button
-              onClick={() => setDarkMode((d) => !d)}
+              onClick={toggleTheme}
               className="p-2.5 rounded-xl bg-surface border border-surface-3 hover:bg-surface-2 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-brand/50"
               aria-label={darkMode ? 'Attiva tema chiaro' : 'Attiva tema scuro'}
             >
@@ -248,7 +202,7 @@ function App() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-bold" style={{ color: 'var(--color-accent)' }}>
-                  {filteredCount}
+                  {filteredRepos.length}
                 </span>
                 <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                   repo corrispondenti
@@ -275,7 +229,7 @@ function App() {
                   aria-label="Filtra per linguaggio"
                 >
                   <option value="">Tutti i linguaggi</option>
-                  {languages.filter(Boolean).map((lang) => (
+                  {languages.map((lang) => (
                     <option key={lang} value={lang}>
                       {lang}
                     </option>
@@ -304,7 +258,7 @@ function App() {
               </div>
               <button
                 onClick={getRandom}
-                disabled={loading || filteredCount === 0}
+                disabled={loading || filteredRepos.length === 0}
                 className="min-h-[48px] px-5 py-3 bg-gradient-to-r from-accent to-brand text-white font-medium rounded-xl hover:opacity-90 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:ring-offset-2"
                 aria-label="Estrai repository casuale"
               >
@@ -433,7 +387,7 @@ function App() {
                 </span>
                 <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                   <IconCalendar className="w-3.5 h-3.5" />
-                  Aggiornato {timeAgo(randomRepo.updated_at)}
+                  Aggiornato {timeAgo(randomRepo.updated_at, true)}
                 </span>
               </div>
 
