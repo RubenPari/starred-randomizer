@@ -1,43 +1,11 @@
 import { useState, useMemo } from 'react';
 import { IconChart, IconChevronDown, IconStar, IconCode, IconClock } from './Icons';
 import LanguageBadge from './LanguageBadge';
-
-interface Repo {
-  full_name: string;
-  html_url: string;
-  description: string;
-  language: string | null;
-  stargazers_count: number;
-  topics: string[];
-  updated_at: string;
-  created_at: string;
-  owner: {
-    login: string;
-    avatar_url: string;
-    html_url: string;
-  };
-}
+import type { Repo } from '../types';
+import { formatStars, timeAgo } from '../utils/format';
 
 interface StatisticsPanelProps {
   repos: Repo[];
-}
-
-function formatNumber(num: number): string {
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
-  return num.toString();
-}
-
-function timeAgo(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  if (seconds < 60) return 'meno di un minuto fa';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} minuti fa`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)} ore fa`;
-  if (seconds < 2592000) return `${Math.floor(seconds / 86400)} giorni fa`;
-  if (seconds < 31536000) return `${Math.floor(seconds / 2592000)} mesi fa`;
-  return `${Math.floor(seconds / 31536000)} anni fa`;
 }
 
 export default function StatisticsPanel({ repos }: StatisticsPanelProps) {
@@ -107,7 +75,7 @@ export default function StatisticsPanel({ repos }: StatisticsPanelProps) {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-surface-2/50 rounded-lg p-3 text-center">
               <div className="text-2xl font-bold" style={{ color: 'var(--color-star)' }}>
-                {formatNumber(stats.totalStars)}
+                {formatStars(stats.totalStars)}
               </div>
               <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                 Stelle totali
@@ -127,7 +95,7 @@ export default function StatisticsPanel({ repos }: StatisticsPanelProps) {
               </div>
               <div className="text-xs mt-1 flex items-center justify-center gap-1" style={{ color: 'var(--color-star)' }}>
                 <IconStar className="w-3 h-3" />
-                {formatNumber(stats.topRepo.stargazers_count)}
+                {formatStars(stats.topRepo.stargazers_count)}
               </div>
             </div>
             <div className="bg-surface-2/50 rounded-lg p-3 text-center">
