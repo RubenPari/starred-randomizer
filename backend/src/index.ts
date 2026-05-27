@@ -34,7 +34,7 @@ function isValidGithubUsername(username: string): boolean {
   return /^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/.test(username);
 }
 
-function getGithubErrorMessage(status: number, body: unknown): string {
+function getGithubErrorMessage(status: number): string {
   switch (status) {
     case 404:
       return 'Username non trovato su GitHub';
@@ -94,7 +94,7 @@ async function bootstrap() {
 
     if (!result.ok) {
       return reply.status(result.status).send({
-        error: getGithubErrorMessage(result.status, result.body)
+        error: getGithubErrorMessage(result.status)
       });
     }
 
@@ -117,7 +117,7 @@ async function bootstrap() {
 
     if (!result.ok) {
       return reply.status(result.status).send({
-        error: getGithubErrorMessage(result.status, result.body)
+        error: getGithubErrorMessage(result.status)
       });
     }
 
