@@ -20,6 +20,14 @@ interface Repo {
   description: string;
   language: string | null;
   stargazers_count: number;
+  topics: string[];
+  updated_at: string;
+  created_at: string;
+  owner: {
+    login: string;
+    avatar_url: string;
+    html_url: string;
+  };
 }
 
 function isValidGithubUsername(username: string): boolean {
