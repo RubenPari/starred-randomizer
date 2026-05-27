@@ -1,36 +1,47 @@
 interface LanguageBadgeProps {
   language: string | null;
+  size?: 'sm' | 'md';
 }
 
-const languageColors: Record<string, string> = {
-  TypeScript: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/25',
-  JavaScript: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-500/25',
-  Python: 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/25',
-  Rust: 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/25',
-  Go: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/25',
-  Java: 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/25',
-  Vue: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25',
-  Svelte: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25',
-  HTML: 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/25',
-  CSS: 'bg-pink-500/15 text-pink-600 dark:text-pink-400 border-pink-500/25',
-  Ruby: 'bg-red-500/15 text-red-600 dark:text-red-300 border-red-500/25',
-  PHP: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/25',
-  C: 'bg-gray-500/15 text-gray-700 dark:text-gray-300 border-gray-500/25',
-  'C++': 'bg-pink-600/15 text-pink-700 dark:text-pink-300 border-pink-600/25',
-  'C#': 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/25',
-  Shell: 'bg-green-500/15 text-green-700 dark:text-green-300 border-green-500/25',
-  Dart: 'bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/25',
-  Kotlin: 'bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-500/25',
-  Swift: 'bg-orange-500/15 text-orange-600 dark:text-orange-300 border-orange-500/25',
+const languageColors: Record<string, { bg: string; text: string; border: string; dot: string }> = {
+  TypeScript: { bg: 'bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400', border: 'border-blue-500/20', dot: 'bg-blue-500' },
+  JavaScript: { bg: 'bg-yellow-500/10', text: 'text-yellow-600 dark:text-yellow-400', border: 'border-yellow-500/20', dot: 'bg-yellow-500' },
+  Python: { bg: 'bg-green-500/10', text: 'text-green-600 dark:text-green-400', border: 'border-green-500/20', dot: 'bg-green-500' },
+  Rust: { bg: 'bg-orange-500/10', text: 'text-orange-600 dark:text-orange-400', border: 'border-orange-500/20', dot: 'bg-orange-500' },
+  Go: { bg: 'bg-cyan-500/10', text: 'text-cyan-600 dark:text-cyan-400', border: 'border-cyan-500/20', dot: 'bg-cyan-500' },
+  Java: { bg: 'bg-red-500/10', text: 'text-red-600 dark:text-red-400', border: 'border-red-500/20', dot: 'bg-red-500' },
+  Vue: { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', border: 'border-emerald-500/20', dot: 'bg-emerald-500' },
+  Svelte: { bg: 'bg-rose-500/10', text: 'text-rose-600 dark:text-rose-400', border: 'border-rose-500/20', dot: 'bg-rose-500' },
+  HTML: { bg: 'bg-orange-500/10', text: 'text-orange-600 dark:text-orange-400', border: 'border-orange-500/20', dot: 'bg-orange-500' },
+  CSS: { bg: 'bg-pink-500/10', text: 'text-pink-600 dark:text-pink-400', border: 'border-pink-500/20', dot: 'bg-pink-500' },
+  Ruby: { bg: 'bg-red-500/10', text: 'text-red-600 dark:text-red-300', border: 'border-red-500/20', dot: 'bg-red-500' },
+  PHP: { bg: 'bg-indigo-500/10', text: 'text-indigo-600 dark:text-indigo-400', border: 'border-indigo-500/20', dot: 'bg-indigo-500' },
+  C: { bg: 'bg-gray-500/10', text: 'text-gray-700 dark:text-gray-300', border: 'border-gray-500/20', dot: 'bg-gray-500' },
+  'C++': { bg: 'bg-pink-600/10', text: 'text-pink-700 dark:text-pink-300', border: 'border-pink-600/20', dot: 'bg-pink-600' },
+  'C#': { bg: 'bg-purple-500/10', text: 'text-purple-600 dark:text-purple-400', border: 'border-purple-500/20', dot: 'bg-purple-500' },
+  Shell: { bg: 'bg-green-500/10', text: 'text-green-700 dark:text-green-300', border: 'border-green-500/20', dot: 'bg-green-500' },
+  Dart: { bg: 'bg-teal-500/10', text: 'text-teal-600 dark:text-teal-400', border: 'border-teal-500/20', dot: 'bg-teal-500' },
+  Kotlin: { bg: 'bg-violet-500/10', text: 'text-violet-600 dark:text-violet-400', border: 'border-violet-500/20', dot: 'bg-violet-500' },
+  Swift: { bg: 'bg-orange-500/10', text: 'text-orange-600 dark:text-orange-300', border: 'border-orange-500/20', dot: 'bg-orange-500' },
 };
 
-export default function LanguageBadge({ language }: LanguageBadgeProps) {
+export default function LanguageBadge({ language, size = 'sm' }: LanguageBadgeProps) {
   if (!language) return null;
 
-  const colorClass = languageColors[language] || 'bg-gray-500/15 text-gray-600 dark:text-gray-400 border-gray-500/25';
+  const colors = languageColors[language] || {
+    bg: 'bg-gray-500/10',
+    text: 'text-gray-600 dark:text-gray-400',
+    border: 'border-gray-500/20',
+    dot: 'bg-gray-500',
+  };
+
+  const sizeClasses = size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-sm';
 
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${colorClass}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full font-medium border ${colors.bg} ${colors.text} ${colors.border} ${sizeClasses} transition-colors hover:opacity-80`}
+    >
+      <span className={`rounded-full ${colors.dot} ${size === 'sm' ? 'w-1.5 h-1.5' : 'w-2 h-2'}`} />
       {language}
     </span>
   );
