@@ -10,6 +10,7 @@ Frontend proxies `/api` requests to backend during dev via `vite.config.ts`.
 ```
 npm run dev      # start with ts-node-dev (auto-reload)
 npm run build    # tsc compile
+npm run start    # run compiled output (node dist/index.js)
 ```
 
 ### Frontend (`frontend/`)
@@ -26,34 +27,59 @@ npm run preview  # vite preview (prod build)
 - `GITHUB_TOKEN` required in `.env` at repo root (backend loads it via `path.resolve(process.cwd(), '../.env')`)
 - Backend reads `.env` from parent directory, not from `backend/.env`
 - No `.env` committed — use `backend/.env` template as reference
+- `CORS_ORIGIN` optional, defaults to `http://localhost:5173`
 
 ## Key Files
+
+### Backend
 | Path | Role |
 |---|---|
-| `backend/src/index.ts` | Single-file Fastify server — 2 API endpoints |
-| `frontend/src/App.tsx` | Main React component — all UI logic |
-| `frontend/src/components/` | Reusable components (Icons, LanguageBadge, SkeletonCard, StatisticsPanel) |
+| `backend/src/index.ts` | Entry point — server setup, CORS, graceful shutdown, health check |
+| `backend/src/config.ts` | Environment config and constants |
+| `backend/src/types.ts` | Shared TypeScript types (Repo, API responses) |
+| `backend/src/services/github.ts` | GitHub API client with caching, timeouts, pagination |
+| `backend/src/routes/starred.ts` | `/api/starred/:username` route handler |
+| `backend/src/routes/random.ts` | `/api/random/:username` route handler |
+| `backend/src/utils/validation.ts` | GitHub username validation |
+| `backend/src/utils/errors.ts` | GitHub API error message mapping |
+| `backend/src/utils/filters.ts` | Repo filtering logic (shared with frontend) |
+
+### Frontend
+| Path | Role |
+|---|---|
+| `frontend/src/App.tsx` | Main component — orchestrates hooks and components |
+| `frontend/src/main.tsx` | Entry point — wraps app in ErrorBoundary |
+| `frontend/src/hooks/useStarredRepos.ts` | Custom hook for fetching starred repos |
+| `frontend/src/hooks/useRandomRepo.ts` | Custom hook for random repo + history |
+| `frontend/src/components/` | Reusable components (Header, FilterPanel, ResultCard, HistoryPanel, ShuffleAnimation, ErrorBoundary, Icons, LanguageBadge, SkeletonCard, StatisticsPanel) |
+| `frontend/src/utils/format.ts` | Utility functions (formatStars, timeAgo, handleApiError) |
+| `frontend/src/types.ts` | Frontend types (Repo, HistoryEntry) |
 | `frontend/src/index.css` | Tailwind v4 + custom CSS vars for theming (light/dark) |
 
 ## API Endpoints
-- `GET /api/starred/:username` — returns all starred repos (page 1, 100 per page)
+- `GET /api/health` — health check with cache stats
+- `GET /api/starred/:username` — returns all starred repos (paginated, cached)
 - `GET /api/random/:username?language=&min_stars=` — returns one random repo matching filters
 
-## Backend Limitations
-- Only fetches page 1 (max 100 repos) — pagination beyond that is not implemented
-- CORS set to `origin: '*'` — open to all origins
+## Backend Features
+- Full pagination (no page limit beyond `maxPages: 20` in config)
+- In-memory caching with 5-minute TTL
+- Request timeout (15s default)
+- CORS restricted to `CORS_ORIGIN` env var (default: `http://localhost:5173`)
+- Graceful shutdown on SIGTERM/SIGINT
 
 ## Frontend Conventions
-- Username `RubenPari` is hardcoded in `App.tsx` — not user-configurable via UI
+- Username configurable via UI input (default: `RubenPari`)
 - All UI text is in Italian
 - Dark mode persists to `localStorage` key `theme`
 - Theme pre-applied in `index.html` via inline script to prevent flash
 - Tailwind v4 via `@tailwindcss/vite` plugin — uses `@import "tailwindcss"` and `@theme` block
-- Custom CSS variables in `index.css` map to Tailwind tokens (`--color-brand`, `--color-surface`, etc.)
+- Custom CSS variables in `index.css` map to Tailwind tokens
 
 ## Build & Lint Order
 ```
 frontend: tsc -b && vite build  (typecheck happens in build)
 frontend: eslint .              (lint)
+backend: tsc                    (typecheck)
 ```
 No test framework configured. No formatter configured beyond ESLint defaults.
