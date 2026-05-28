@@ -4,9 +4,13 @@ export interface Repo {
   description: string;
   language: string | null;
   stargazers_count: number;
+  forks_count: number;
+  watchers_count: number;
+  open_issues_count: number;
   topics: string[];
   updated_at: string;
   created_at: string;
+  archived: boolean;
   owner: {
     login: string;
     avatar_url: string;
