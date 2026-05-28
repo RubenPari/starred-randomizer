@@ -8,6 +8,14 @@
   --color-surface-3: var(--color-surface-3);
   --color-accent: var(--color-accent);
   --color-star: var(--color-star);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-scale-in: scale-in 0.3s ease-out;
+  --animate-slide-in-right: slide-in-right 0.3s ease-out;
+  --animate-shuffle-pulse: shuffle-pulse 0.15s ease-in-out;
+  --animate-glow-pulse: glow-pulse 2s ease-in-out infinite;
 }
 
 :root {

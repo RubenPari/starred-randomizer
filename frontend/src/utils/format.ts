@@ -1,6 +1,8 @@
 export function formatStars(count: number): string {
   if (count >= 1000) {
-    return `${(count / 1000).toFixed(1)}k`;
+    const value = count / 1000;
+    const formatted = value % 1 === 0 ? value.toFixed(0) : value.toFixed(1);
+    return `${formatted}k`;
   }
   return count.toString();
 }
@@ -32,13 +34,27 @@ export function formatTime(timestamp: number): string {
   return date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
 }
 
+interface AxiosLikeError {
+  response?: {
+    data?: {
+      error?: string;
+    };
+  };
+  code?: string;
+}
+
+function isAxiosLikeError(err: unknown): err is AxiosLikeError {
+  return typeof err === 'object' && err !== null && 'response' in err;
+}
+
 export function handleApiError(err: unknown): string {
-  const error = err as { response?: { data?: { error?: string } }; code?: string };
-  if (error.response?.data?.error) {
-    return error.response.data.error;
-  }
-  if (error.code === 'ERR_NETWORK') {
-    return 'Impossibile connettersi al server. Verifica che il backend sia attivo.';
+  if (isAxiosLikeError(err)) {
+    if (err.response?.data?.error) {
+      return err.response.data.error;
+    }
+    if (err.code === 'ERR_NETWORK') {
+      return 'Impossibile connettersi al server. Verifica che il backend sia attivo.';
+    }
   }
   return 'Errore imprevisto. Riprova.';
 }
