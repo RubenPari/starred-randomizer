@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import axios from 'axios';
 import { SkeletonCard } from './components/SkeletonCard';
 import StatisticsPanel from './components/StatisticsPanel';
 import Header from './components/Header';
@@ -6,39 +7,39 @@ import FilterPanel from './components/FilterPanel';
 import ResultCard from './components/ResultCard';
 import HistoryPanel from './components/HistoryPanel';
 import ShuffleAnimation from './components/ShuffleAnimation';
+import SearchPanel from './components/SearchPanel';
+import HiddenGems from './components/HiddenGems';
+import FavoritesPanel from './components/FavoritesPanel';
+import StatsDashboard from './components/StatsDashboard';
+import TimelineHeatmap from './components/TimelineHeatmap';
 import { useStarredRepos } from './hooks/useStarredRepos';
 import { useRandomRepo } from './hooks/useRandomRepo';
-import type { Repo } from './types';
+import { useFavorites } from './hooks/useFavorites';
+import { useTheme } from './hooks/useTheme';
+import type { Repo, HiddenGemScore, RepoStats } from './types';
 import { IconZap } from './components/Icons';
 
 const DEFAULT_USERNAME = 'RubenPari';
-
-function useTheme() {
-  const [darkMode, setDarkMode] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('theme');
-      return saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    }
-    return true;
-  });
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode);
-    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
-  }, [darkMode]);
-
-  return { darkMode, toggleTheme: () => setDarkMode((d) => !d) };
-}
 
 function App() {
   const [username, setUsername] = useState(DEFAULT_USERNAME);
   const [filters, setFilters] = useState<{ language: string; min_stars: number }>({ language: '', min_stars: 0 });
   const [shufflePhase, setShufflePhase] = useState(false);
+  const [searchResults, setSearchResults] = useState<Repo[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [gems, setGems] = useState<HiddenGemScore[]>([]);
+  const [gemsLoading, setGemsLoading] = useState(false);
+  const [gemsError, setGemsError] = useState<string | null>(null);
+  const [stats, setStats] = useState<RepoStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'randomizer' | 'search' | 'gems' | 'stats' | 'favorites'>('randomizer');
   const resultRef = useRef<HTMLDivElement>(null);
 
   const { darkMode, toggleTheme } = useTheme();
   const { repos, loading: starredLoading, error: starredError, fetchStarred } = useStarredRepos();
   const { randomRepo, loading: randomLoading, error: randomError, history, getRandom, selectFromHistory, clearHistory } = useRandomRepo();
+  const { favorites, addFavorite, removeFavorite, isFavorite, clearFavorites } = useFavorites();
 
   const loading = starredLoading || randomLoading;
 
@@ -72,7 +73,7 @@ function App() {
   }, [username, filters, filteredRepos.length, getRandom]);
 
   const handleShuffleComplete = useCallback(() => {
-    // Shuffle completed, the hook already sets the random repo
+    // The hook already sets the random repo
   }, []);
 
   const resetFilters = useCallback(() => {
@@ -87,6 +88,76 @@ function App() {
       }
     }, 100);
   }, [selectFromHistory]);
+
+  const handleSearch = useCallback(async (query: string) => {
+    setSearchLoading(true);
+    try {
+      const res = await axios.get<Repo[]>(`/api/search/${username}`, { params: { q: query } });
+      setSearchResults(res.data);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [username]);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchResults([]);
+  }, []);
+
+  const handleSelectSearchResult = useCallback((repo: Repo) => {
+    setRandomRepoFromSearch(repo);
+    setActiveTab('randomizer');
+    setTimeout(() => {
+      resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  }, []);
+
+  const [searchSelectedRepo, setRandomRepoFromSearch] = useState<Repo | null>(null);
+
+  const handleFetchGems = useCallback(async () => {
+    setGemsLoading(true);
+    setGemsError(null);
+    try {
+      const res = await axios.get<HiddenGemScore[]>(`/api/hidden-gems/${username}`, { params: { limit: 10 } });
+      setGems(res.data);
+    } catch {
+      setGemsError('Errore nel recupero degli hidden gems');
+      setGems([]);
+    } finally {
+      setGemsLoading(false);
+    }
+  }, [username]);
+
+  const handleSelectGem = useCallback((repo: Repo) => {
+    setRandomRepoFromSearch(repo);
+    setActiveTab('randomizer');
+    setTimeout(() => {
+      resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  }, []);
+
+  const handleFetchStats = useCallback(async () => {
+    setStatsLoading(true);
+    setStatsError(null);
+    try {
+      const res = await axios.get<RepoStats>(`/api/stats/${username}`);
+      setStats(res.data);
+    } catch {
+      setStatsError('Errore nel recupero delle statistiche');
+      setStats(null);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [username]);
+
+  const tabs = [
+    { id: 'randomizer' as const, label: 'Randomizer' },
+    { id: 'search' as const, label: 'Cerca' },
+    { id: 'gems' as const, label: 'Hidden Gems' },
+    { id: 'stats' as const, label: 'Statistiche' },
+    { id: 'favorites' as const, label: `Preferiti (${favorites.length})` },
+  ];
 
   return (
     <div className="min-h-screen p-4 sm:p-6 md:p-8">
@@ -127,43 +198,115 @@ function App() {
         {repos.length > 0 && <StatisticsPanel repos={repos} />}
 
         {repos.length > 0 && (
-          <FilterPanel
-            repos={repos}
-            filteredCount={filteredRepos.length}
-            languages={languages}
-            filters={filters}
-            maxStars={maxStars}
-            loading={loading}
-            onFilterChange={setFilters}
-            onResetFilters={resetFilters}
-            onRandom={handleRandom}
-            error={randomError}
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors min-h-[40px] ${
+                  activeTab === tab.id
+                    ? 'bg-brand/20 text-brand'
+                    : 'bg-surface-2 text-secondary hover:bg-surface-3'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'randomizer' && repos.length > 0 && (
+          <>
+            <FilterPanel
+              repos={repos}
+              filteredCount={filteredRepos.length}
+              languages={languages}
+              filters={filters}
+              maxStars={maxStars}
+              loading={loading}
+              onFilterChange={setFilters}
+              onResetFilters={resetFilters}
+              onRandom={handleRandom}
+              error={randomError}
+            />
+
+            {loading && repos.length > 0 && <SkeletonCard />}
+
+            {shufflePhase && filteredRepos.length > 0 && (
+              <ShuffleAnimation
+                filteredRepos={filteredRepos}
+                onComplete={handleShuffleComplete}
+              />
+            )}
+
+            {(randomRepo || searchSelectedRepo) && !shufflePhase && (
+              <ResultCard
+                ref={resultRef}
+                repo={randomRepo ?? searchSelectedRepo!}
+                loading={loading}
+                onReroll={handleRandom}
+                isFavorite={isFavorite((randomRepo ?? searchSelectedRepo)!.full_name)}
+                onToggleFavorite={() => {
+                  const repo = randomRepo ?? searchSelectedRepo!;
+                  if (isFavorite(repo.full_name)) {
+                    removeFavorite(repo.full_name);
+                  } else {
+                    addFavorite(repo);
+                  }
+                }}
+              />
+            )}
+
+            <HistoryPanel
+              history={history}
+              onSelectEntry={handleSelectFromHistory}
+              onClear={clearHistory}
+            />
+          </>
+        )}
+
+        {activeTab === 'search' && (
+          <SearchPanel
+            onSearch={handleSearch}
+            onClear={handleClearSearch}
+            isLoading={searchLoading}
+            results={searchResults}
+            onSelect={handleSelectSearchResult}
           />
         )}
 
-        {loading && repos.length > 0 && <SkeletonCard />}
-
-        {shufflePhase && filteredRepos.length > 0 && (
-          <ShuffleAnimation
-            filteredRepos={filteredRepos}
-            onComplete={handleShuffleComplete}
+        {activeTab === 'gems' && (
+          <HiddenGems
+            gems={gems}
+            loading={gemsLoading}
+            error={gemsError}
+            onFetch={handleFetchGems}
+            onSelect={handleSelectGem}
           />
         )}
 
-        {randomRepo && !shufflePhase && (
-          <ResultCard
-            ref={resultRef}
-            repo={randomRepo}
-            loading={loading}
-            onReroll={handleRandom}
-          />
+        {activeTab === 'stats' && (
+          <>
+            <StatsDashboard
+              stats={stats}
+              loading={statsLoading}
+              error={statsError}
+              onFetch={handleFetchStats}
+            />
+            {stats && stats.starActivity.length > 0 && (
+              <TimelineHeatmap activity={stats.starActivity} />
+            )}
+          </>
         )}
 
-        <HistoryPanel
-          history={history}
-          onSelectEntry={handleSelectFromHistory}
-          onClear={clearHistory}
-        />
+        {activeTab === 'favorites' && (
+          <FavoritesPanel
+            favorites={favorites}
+            onRemove={removeFavorite}
+            onClear={clearFavorites}
+            onSelect={handleSelectGem}
+          />
+        )}
 
         <footer className="text-center py-6 animate-fade-in">
           <div className="flex items-center justify-center gap-2 text-xs text-muted">
