@@ -1,11 +1,13 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { config } from './config';
+import dbAndAuthPlugin from './plugins/auth';
 import { starredRoutes } from './routes/starred';
 import { randomRoutes } from './routes/random';
 import { hiddenGemsRoutes } from './routes/hidden-gems';
 import { searchRoutes } from './routes/search';
 import { statsRoutes } from './routes/stats';
+import { favoritesRoutes } from './routes/favorites';
 import { getCacheStats } from './services/github';
 
 const app = Fastify({
@@ -15,7 +17,9 @@ const app = Fastify({
 });
 
 async function bootstrap() {
-  await app.register(cors, { origin: config.corsOrigin });
+  await app.register(cors, { origin: config.corsOrigin, credentials: true });
+
+  await app.register(dbAndAuthPlugin);
 
   console.log(`[INFO] GITHUB_TOKEN caricato: [REDACTED]`);
   console.log(`[INFO] CORS origin: ${config.corsOrigin}`);
@@ -23,7 +27,6 @@ async function bootstrap() {
   console.log(`[INFO] Request timeout: ${config.requestTimeoutMs}ms`);
   console.log(`[INFO] Starting server on port ${config.port}`);
 
-  // Health check endpoint
   app.get('/api/health', async () => {
     return {
       status: 'ok',
@@ -33,19 +36,19 @@ async function bootstrap() {
     };
   });
 
-  // Register routes
   await app.register(starredRoutes);
   await app.register(randomRoutes);
   await app.register(hiddenGemsRoutes);
   await app.register(searchRoutes);
   await app.register(statsRoutes);
+  await app.register(favoritesRoutes);
 
-  // Graceful shutdown
   const signals = ['SIGTERM', 'SIGINT'] as const;
   signals.forEach((signal) => {
     process.on(signal, async () => {
       console.log(`[INFO] Received ${signal}, shutting down gracefully...`);
       try {
+        app.db.close();
         await app.close();
         console.log('[INFO] Server closed successfully');
         process.exit(0);
