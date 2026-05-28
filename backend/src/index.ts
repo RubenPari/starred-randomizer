@@ -1,147 +1,65 @@
-import Fastify, { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import fetch from 'node-fetch';
-import dotenv from 'dotenv';
-import path from 'path';
+import { config } from './config';
+import { starredRoutes } from './routes/starred';
+import { randomRoutes } from './routes/random';
+import { getCacheStats } from './services/github';
 
-dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
-const app: FastifyInstance = Fastify();
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const PORT = parseInt(process.env.PORT as string, 10) || 3001;
-
-if (!GITHUB_TOKEN) {
-  console.error('[FATAL] GITHUB_TOKEN non è definito nel file .env');
-  process.exit(1);
-}
-
-interface Repo {
-  full_name: string;
-  html_url: string;
-  description: string;
-  language: string | null;
-  stargazers_count: number;
-  topics: string[];
-  updated_at: string;
-  created_at: string;
-  owner: {
-    login: string;
-    avatar_url: string;
-    html_url: string;
-  };
-}
-
-function isValidGithubUsername(username: string): boolean {
-  return /^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/.test(username);
-}
-
-function getGithubErrorMessage(status: number): string {
-  switch (status) {
-    case 404:
-      return 'Username non trovato su GitHub';
-    case 401:
-      return 'Token GitHub non valido o scaduto';
-    case 403:
-      return 'Accesso negato. Verifica il token GitHub o i limiti di rate';
-    case 422:
-      return 'Username non valido per GitHub';
-    default:
-      if (status >= 500) return 'Errore server GitHub. Riprova più tardi';
-      return `Errore GitHub API (${status})`;
-  }
-}
-
-async function fetchStarredFromGithub(username: string, page: string, per_page: string): Promise<{ ok: false; status: number; body: unknown } | { ok: true; data: Repo[] }> {
-  const url = `https://api.github.com/users/${username}/starred?page=${page}&per_page=${per_page}`;
-  console.log(`[DEBUG] Fetching: ${url}`);
-  
-  const res = await fetch(url, {
-    headers: { Authorization: `token ${GITHUB_TOKEN!}`, 'User-Agent': 'starred-randomizer' }
-  });
-
-  console.log(`[DEBUG] GitHub API response: ${res.status}`);
-  
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    console.error(`[ERROR] GitHub API error ${res.status}:`, JSON.stringify(body));
-    return { ok: false, status: res.status ?? 500, body };
-  }
-
-  const data = await res.json();
-  console.log(`[DEBUG] Retrieved ${Array.isArray(data) ? data.length : 0} repositories`);
-  return { ok: true, data: data as Repo[] };
-}
+const app = Fastify({
+  logger: {
+    level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+  },
+});
 
 async function bootstrap() {
-  await app.register(cors, { origin: '*' });
+  await app.register(cors, { origin: config.corsOrigin });
 
-  console.log(`[INFO] GITHUB_TOKEN caricato: ${GITHUB_TOKEN!.slice(0, 7)}...`);
-  console.log(`[INFO] Starting server on port ${PORT}`);
+  console.log(`[INFO] GITHUB_TOKEN caricato: [REDACTED]`);
+  console.log(`[INFO] CORS origin: ${config.corsOrigin}`);
+  console.log(`[INFO] Cache TTL: ${config.cacheTtlMs / 1000}s`);
+  console.log(`[INFO] Request timeout: ${config.requestTimeoutMs}ms`);
+  console.log(`[INFO] Starting server on port ${config.port}`);
 
-  // Recupera starred repos
-  app.get('/api/starred/:username', async (request: FastifyRequest<{ Params: { username: string }; Querystring: { page?: string; per_page?: string } }>, reply: FastifyReply) => {
-    const { username } = request.params;
-    const page = request.query.page ?? '1';
-    const per_page = request.query.per_page ?? '100';
-
-    console.log(`[INFO] Request for username: ${username}`);
-
-    if (!isValidGithubUsername(username)) {
-      console.warn(`[WARN] Invalid username format: ${username}`);
-      return reply.status(400).send({ error: 'Formato username non valido' });
-    }
-
-    const result = await fetchStarredFromGithub(username, page, per_page);
-
-    if (!result.ok) {
-      return reply.status(result.status).send({
-        error: getGithubErrorMessage(result.status)
-      });
-    }
-
-    return result.data;
+  // Health check endpoint
+  app.get('/api/health', async () => {
+    return {
+      status: 'ok',
+      uptime: process.uptime(),
+      timestamp: Date.now(),
+      cache: getCacheStats(),
+    };
   });
 
-  // Estrai repo casuale con filtri
-  app.get('/api/random/:username', async (request: FastifyRequest<{ Params: { username: string }; Querystring: { language?: string; min_stars?: string } }>, reply: FastifyReply) => {
-    const { username } = request.params;
-    const { language, min_stars } = request.query;
+  // Register routes
+  await app.register(starredRoutes);
+  await app.register(randomRoutes);
 
-    console.log(`[INFO] Random request for username: ${username}, language: ${language}, min_stars: ${min_stars}`);
-
-    if (!isValidGithubUsername(username)) {
-      console.warn(`[WARN] Invalid username format: ${username}`);
-      return reply.status(400).send({ error: 'Formato username non valido' });
-    }
-
-    const result = await fetchStarredFromGithub(username, '1', '100');
-
-    if (!result.ok) {
-      return reply.status(result.status).send({
-        error: getGithubErrorMessage(result.status)
-      });
-    }
-
-    let repos = result.data;
-
-    if (language) repos = repos.filter(r => r.language?.toLowerCase() === language.toLowerCase());
-    if (min_stars) repos = repos.filter(r => r.stargazers_count >= parseInt(min_stars, 10));
-
-    console.log(`[DEBUG] After filters: ${repos.length} repositories`);
-
-    if (!repos.length) return reply.status(404).send({ error: 'Nessun repository trovato con questi filtri' });
-
-    const random = repos[Math.floor(Math.random() * repos.length)];
-    console.log(`[INFO] Selected random repo: ${random.full_name}`);
-    return random;
+  // Graceful shutdown
+  const signals = ['SIGTERM', 'SIGINT'] as const;
+  signals.forEach((signal) => {
+    process.on(signal, async () => {
+      console.log(`[INFO] Received ${signal}, shutting down gracefully...`);
+      try {
+        await app.close();
+        console.log('[INFO] Server closed successfully');
+        process.exit(0);
+      } catch (err) {
+        console.error('[ERROR] Error during shutdown:', err);
+        process.exit(1);
+      }
+    });
   });
 
-  app.listen({ port: PORT }, (err) => {
-    if (err) throw err;
-    console.log(`Server in ascolto su http://localhost:${PORT}`);
-  });
+  try {
+    await app.listen({ port: config.port, host: '0.0.0.0' });
+    console.log(`Server in ascolto su http://localhost:${config.port}`);
+  } catch (err) {
+    console.error('[FATAL] Failed to start server:', err);
+    process.exit(1);
+  }
 }
 
-bootstrap().catch(err => {
-  console.error('[FATAL] Failed to start server:', err);
-  throw err;
+bootstrap().catch((err) => {
+  console.error('[FATAL] Failed to bootstrap:', err);
+  process.exit(1);
 });
