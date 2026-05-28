@@ -3,6 +3,9 @@ import cors from '@fastify/cors';
 import { config } from './config';
 import { starredRoutes } from './routes/starred';
 import { randomRoutes } from './routes/random';
+import { hiddenGemsRoutes } from './routes/hidden-gems';
+import { searchRoutes } from './routes/search';
+import { statsRoutes } from './routes/stats';
 import { getCacheStats } from './services/github';
 
 const app = Fastify({
@@ -33,6 +36,9 @@ async function bootstrap() {
   // Register routes
   await app.register(starredRoutes);
   await app.register(randomRoutes);
+  await app.register(hiddenGemsRoutes);
+  await app.register(searchRoutes);
+  await app.register(statsRoutes);
 
   // Graceful shutdown
   const signals = ['SIGTERM', 'SIGINT'] as const;
