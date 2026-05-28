@@ -38,3 +38,8 @@ coverage/
 package-lock.json.backup
 yarn.lock.backup
 pnpm-lock.yaml.backup
+
+# Database
+*.db
+*.db-shm
+*.db-wal
