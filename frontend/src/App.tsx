@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, useContext } from 'react';
 import axios from 'axios';
+import { AuthContext } from './contexts/AuthContext';
+import AuthModal from './components/AuthModal';
 import { SkeletonCard } from './components/SkeletonCard';
 import StatisticsPanel from './components/StatisticsPanel';
 import Header from './components/Header';
@@ -21,7 +23,8 @@ import { IconZap } from './components/Icons';
 
 const DEFAULT_USERNAME = 'RubenPari';
 
-function App() {
+function AppContent() {
+  const { user, login, register, logout, loading: authLoading } = useContext(AuthContext);
   const [username, setUsername] = useState(DEFAULT_USERNAME);
   const [filters, setFilters] = useState<{ language: string; min_stars: number }>({ language: '', min_stars: 0 });
   const [shufflePhase, setShufflePhase] = useState(false);
@@ -33,6 +36,7 @@ function App() {
   const [stats, setStats] = useState<RepoStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'randomizer' | 'search' | 'gems' | 'stats' | 'favorites'>('randomizer');
   const resultRef = useRef<HTMLDivElement>(null);
 
@@ -72,9 +76,7 @@ function App() {
     }, 100);
   }, [username, filters, filteredRepos.length, getRandom]);
 
-  const handleShuffleComplete = useCallback(() => {
-    // The hook already sets the random repo
-  }, []);
+  const handleShuffleComplete = useCallback(() => {}, []);
 
   const resetFilters = useCallback(() => {
     setFilters({ language: '', min_stars: 0 });
@@ -105,6 +107,8 @@ function App() {
     setSearchResults([]);
   }, []);
 
+  const [searchSelectedRepo, setRandomRepoFromSearch] = useState<Repo | null>(null);
+
   const handleSelectSearchResult = useCallback((repo: Repo) => {
     setRandomRepoFromSearch(repo);
     setActiveTab('randomizer');
@@ -112,8 +116,6 @@ function App() {
       resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 100);
   }, []);
-
-  const [searchSelectedRepo, setRandomRepoFromSearch] = useState<Repo | null>(null);
 
   const handleFetchGems = useCallback(async () => {
     setGemsLoading(true);
@@ -159,6 +161,14 @@ function App() {
     { id: 'favorites' as const, label: `Preferiti (${favorites.length})` },
   ];
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <span className="spinner" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen p-4 sm:p-6 md:p-8">
       <div className="max-w-2xl mx-auto space-y-5">
@@ -167,6 +177,10 @@ function App() {
           toggleTheme={toggleTheme}
           username={username}
           onUsernameChange={setUsername}
+          isAuthenticated={!!user}
+          onAuthClick={() => setAuthModalOpen(true)}
+          onLogout={logout}
+          userEmail={user?.email ?? null}
         />
 
         {loading && repos.length === 0 ? (
@@ -327,8 +341,15 @@ function App() {
           </div>
         </footer>
       </div>
+
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onLogin={login}
+        onRegister={register}
+      />
     </div>
   );
 }
 
-export default App;
+export default AppContent;
