@@ -1,14 +1,18 @@
 import { useState, useCallback } from 'react';
-import { IconDice, IconSun, IconMoon } from './Icons';
+import { IconDice, IconSun, IconMoon, IconUser } from './Icons';
 
 interface HeaderProps {
   darkMode: boolean;
   toggleTheme: () => void;
   username: string;
   onUsernameChange: (username: string) => void;
+  isAuthenticated: boolean;
+  onAuthClick: () => void;
+  onLogout: () => void;
+  userEmail: string | null;
 }
 
-export default function Header({ darkMode, toggleTheme, username, onUsernameChange }: HeaderProps) {
+export default function Header({ darkMode, toggleTheme, username, onUsernameChange, isAuthenticated, onAuthClick, onLogout, userEmail }: HeaderProps) {
   const [inputValue, setInputValue] = useState(username);
 
   const handleSubmit = useCallback(() => {
@@ -26,7 +30,7 @@ export default function Header({ darkMode, toggleTheme, username, onUsernameChan
 
   return (
     <header className="text-center animate-fade-in">
-      <div className="flex items-center justify-end mb-3">
+      <div className="flex items-center justify-end gap-2 mb-3">
         <button
           onClick={toggleTheme}
           className="p-2.5 rounded-xl bg-surface border border-surface-3 hover:bg-surface-2 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-brand/50"
@@ -38,6 +42,29 @@ export default function Header({ darkMode, toggleTheme, username, onUsernameChan
             <IconMoon className="w-5 h-5 text-brand" />
           )}
         </button>
+        {isAuthenticated ? (
+          <div className="relative group">
+            <button
+              className="p-2.5 rounded-xl bg-surface border border-surface-3 hover:bg-surface-2 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-brand/50"
+              onClick={onLogout}
+              aria-label={`Esci da ${userEmail}`}
+              title={userEmail ?? ''}
+            >
+              <IconUser className="w-5 h-5 text-brand" />
+            </button>
+            <span className="absolute right-0 top-full mt-1 px-2 py-1 bg-surface border border-surface-3 rounded text-xs text-muted whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              {userEmail}
+            </span>
+          </div>
+        ) : (
+          <button
+            onClick={onAuthClick}
+            className="p-2.5 rounded-xl bg-surface border border-surface-3 hover:bg-surface-2 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-brand/50"
+            aria-label="Accedi o registrati"
+          >
+            <IconUser className="w-5 h-5 text-muted hover:text-brand transition-colors" />
+          </button>
+        )}
       </div>
       <div className="flex items-center justify-center gap-3 mb-2">
         <div className="p-2 rounded-xl bg-gradient-to-br from-brand to-accent shadow-lg">
