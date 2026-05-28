@@ -43,6 +43,10 @@ npm run preview  # vite preview (prod build)
 | `backend/src/utils/validation.ts` | GitHub username validation |
 | `backend/src/utils/errors.ts` | GitHub API error message mapping |
 | `backend/src/utils/filters.ts` | Repo filtering logic (shared with frontend) |
+| `backend/src/utils/hidden-gems.ts` | Hidden gems scoring algorithm |
+| `backend/src/routes/hidden-gems.ts` | `/api/hidden-gems/:username` route handler |
+| `backend/src/routes/search.ts` | `/api/search/:username` route handler |
+| `backend/src/routes/stats.ts` | `/api/stats/:username` route handler |
 
 ### Frontend
 | Path | Role |
@@ -51,15 +55,20 @@ npm run preview  # vite preview (prod build)
 | `frontend/src/main.tsx` | Entry point — wraps app in ErrorBoundary |
 | `frontend/src/hooks/useStarredRepos.ts` | Custom hook for fetching starred repos |
 | `frontend/src/hooks/useRandomRepo.ts` | Custom hook for random repo + history |
-| `frontend/src/components/` | Reusable components (Header, FilterPanel, ResultCard, HistoryPanel, ShuffleAnimation, ErrorBoundary, Icons, LanguageBadge, SkeletonCard, StatisticsPanel) |
+| `frontend/src/hooks/useFavorites.ts` | Favorites persisted to localStorage |
+| `frontend/src/hooks/useTheme.ts` | Dark mode toggle with localStorage |
+| `frontend/src/components/` | Reusable components (Header, FilterPanel, ResultCard, HistoryPanel, ShuffleAnimation, SearchPanel, HiddenGems, FavoritesPanel, StatsDashboard, TimelineHeatmap, ErrorBoundary, Icons, LanguageBadge, SkeletonCard, StatisticsPanel) |
 | `frontend/src/utils/format.ts` | Utility functions (formatStars, timeAgo, handleApiError) |
-| `frontend/src/types.ts` | Frontend types (Repo, HistoryEntry) |
+| `frontend/src/types.ts` | Frontend types (Repo, HistoryEntry, HiddenGemScore, RepoStats) |
 | `frontend/src/index.css` | Tailwind v4 + custom CSS vars for theming (light/dark) |
 
 ## API Endpoints
 - `GET /api/health` — health check with cache stats
 - `GET /api/starred/:username` — returns all starred repos (paginated, cached)
 - `GET /api/random/:username?language=&min_stars=` — returns one random repo matching filters
+- `GET /api/hidden-gems/:username?limit=` — returns underrated repos (scored, <100 stars)
+- `GET /api/search/:username?q=&language=&min_stars=&limit=` — full-text search across starred
+- `GET /api/stats/:username` — aggregated statistics (languages, activity, topics)
 
 ## Backend Features
 - Full pagination (no page limit beyond `maxPages: 20` in config)
