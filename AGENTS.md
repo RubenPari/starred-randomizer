@@ -28,6 +28,8 @@ npm run preview  # vite preview (prod build)
 - Backend reads `.env` from parent directory, not from `backend/.env`
 - No `.env` committed — use `backend/.env` template as reference
 - `CORS_ORIGIN` optional, defaults to `http://localhost:5173`
+- `JWT_SECRET` optional, used for signing JWT tokens (default: dev-secret-change-in-production)
+- `starred.db` SQLite database created automatically on first run
 
 ## Key Files
 
@@ -47,35 +49,48 @@ npm run preview  # vite preview (prod build)
 | `backend/src/routes/hidden-gems.ts` | `/api/hidden-gems/:username` route handler |
 | `backend/src/routes/search.ts` | `/api/search/:username` route handler |
 | `backend/src/routes/stats.ts` | `/api/stats/:username` route handler |
+| `backend/src/routes/favorites.ts` | `/api/favorites` CRUD (protected) |
+| `backend/src/plugins/auth.ts` | Auth plugin: SQLite init, JWT, cookies, /api/auth/* routes |
 
 ### Frontend
 | Path | Role |
 |---|---|
 | `frontend/src/App.tsx` | Main component — orchestrates hooks and components |
-| `frontend/src/main.tsx` | Entry point — wraps app in ErrorBoundary |
+| `frontend/src/main.tsx` | Entry point — wraps app in ErrorBoundary + AuthProvider |
+| `frontend/src/contexts/AuthContext.tsx` | Auth state management (login, register, logout) |
 | `frontend/src/hooks/useStarredRepos.ts` | Custom hook for fetching starred repos |
 | `frontend/src/hooks/useRandomRepo.ts` | Custom hook for random repo + history |
-| `frontend/src/hooks/useFavorites.ts` | Favorites persisted to localStorage |
+| `frontend/src/hooks/useFavorites.ts` | Favorites: API when auth, localStorage fallback |
 | `frontend/src/hooks/useTheme.ts` | Dark mode toggle with localStorage |
-| `frontend/src/components/` | Reusable components (Header, FilterPanel, ResultCard, HistoryPanel, ShuffleAnimation, SearchPanel, HiddenGems, FavoritesPanel, StatsDashboard, TimelineHeatmap, ErrorBoundary, Icons, LanguageBadge, SkeletonCard, StatisticsPanel) |
+| `frontend/src/components/` | Reusable components (Header, FilterPanel, ResultCard, HistoryPanel, ShuffleAnimation, SearchPanel, HiddenGems, FavoritesPanel, StatsDashboard, TimelineHeatmap, AuthModal, UserMenu, ErrorBoundary, Icons, LanguageBadge, SkeletonCard, StatisticsPanel) |
 | `frontend/src/utils/format.ts` | Utility functions (formatStars, timeAgo, handleApiError) |
 | `frontend/src/types.ts` | Frontend types (Repo, HistoryEntry, HiddenGemScore, RepoStats) |
 | `frontend/src/index.css` | Tailwind v4 + custom CSS vars for theming (light/dark) |
 
 ## API Endpoints
 - `GET /api/health` — health check with cache stats
+- `POST /api/auth/register` — create account
+- `POST /api/auth/login` — login, sets httpOnly cookie
+- `POST /api/auth/logout` — logout, clears cookie
+- `GET /api/auth/me` — get current user
 - `GET /api/starred/:username` — returns all starred repos (paginated, cached)
 - `GET /api/random/:username?language=&min_stars=` — returns one random repo matching filters
 - `GET /api/hidden-gems/:username?limit=` — returns underrated repos (scored, <100 stars)
 - `GET /api/search/:username?q=&language=&min_stars=&limit=` — full-text search across starred
 - `GET /api/stats/:username` — aggregated statistics (languages, activity, topics)
+- `GET /api/favorites` — user favorites (protected)
+- `POST /api/favorites` — add favorite (protected)
+- `DELETE /api/favorites/:fullName` — remove favorite (protected)
 
 ## Backend Features
 - Full pagination (no page limit beyond `maxPages: 20` in config)
 - In-memory caching with 5-minute TTL
 - Request timeout (15s default)
-- CORS restricted to `CORS_ORIGIN` env var (default: `http://localhost:5173`)
+- CORS restricted to `CORS_ORIGIN` env var (default: `http://localhost:5173`) with credentials
 - Graceful shutdown on SIGTERM/SIGINT
+- SQLite database for users and favorites
+- JWT authentication via httpOnly cookies
+- argon2 password hashing
 
 ## Frontend Conventions
 - Username configurable via UI input (default: `RubenPari`)
