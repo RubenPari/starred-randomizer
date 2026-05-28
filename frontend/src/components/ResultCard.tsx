@@ -1,6 +1,6 @@
 import { forwardRef } from 'react';
 import type { Repo } from '../types';
-import { IconDice, IconStar, IconCalendar, IconExternalLink, IconRefresh, IconGitHub } from './Icons';
+import { IconDice, IconStar, IconCalendar, IconExternalLink, IconRefresh, IconGitHub, IconHeart } from './Icons';
 import LanguageBadge from './LanguageBadge';
 import { formatStars, timeAgo } from '../utils/format';
 
@@ -8,10 +8,12 @@ interface ResultCardProps {
   repo: Repo;
   loading: boolean;
   onReroll: () => void;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
 }
 
 const ResultCard = forwardRef<HTMLDivElement, ResultCardProps>(
-  ({ repo, loading, onReroll }, ref) => {
+  ({ repo, loading, onReroll, isFavorite, onToggleFavorite }, ref) => {
     return (
       <div
         ref={ref}
@@ -25,14 +27,27 @@ const ResultCard = forwardRef<HTMLDivElement, ResultCardProps>(
               </span>
               Repository Estratto
             </h2>
-            <button
-              onClick={onReroll}
-              disabled={loading}
-              className="text-xs px-3 py-2 bg-surface-2 hover:bg-surface-3 rounded-lg transition-colors flex items-center gap-1.5 min-h-[36px] disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-brand/50 text-secondary"
-              aria-label="Re-estrai repository"
-            >
-              <IconRefresh className="w-3.5 h-3.5" /> Re-estrai
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onToggleFavorite}
+                className={`p-2 rounded-lg transition-colors min-h-[36px] ${
+                  isFavorite
+                    ? 'bg-red-400/10 text-red-400 hover:bg-red-400/20'
+                    : 'bg-surface-2 text-muted hover:bg-surface-3 hover:text-red-400'
+                }`}
+                aria-label={isFavorite ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+              >
+                <IconHeart className="w-4 h-4" />
+              </button>
+              <button
+                onClick={onReroll}
+                disabled={loading}
+                className="text-xs px-3 py-2 bg-surface-2 hover:bg-surface-3 rounded-lg transition-colors flex items-center gap-1.5 min-h-[36px] disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-brand/50 text-secondary"
+                aria-label="Re-estrai repository"
+              >
+                <IconRefresh className="w-3.5 h-3.5" /> Re-estrai
+              </button>
+            </div>
           </div>
 
           <div className="flex items-start gap-3 mb-3">
