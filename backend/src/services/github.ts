@@ -9,12 +9,13 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 
-function getCacheKey(username: string): string {
-  return `starred:${username.toLowerCase()}`;
+function getCacheKey(username: string, token?: string): string {
+  // Include token in cache key to avoid mixing cached data across different users/tokens
+  return `starred:${username.toLowerCase()}:${token ? 'custom' : 'global'}`;
 }
 
-function getCached(username: string): Repo[] | null {
-  const key = getCacheKey(username);
+function getCached(username: string, token?: string): Repo[] | null {
+  const key = getCacheKey(username, token);
   const entry = cache.get(key);
   if (!entry) return null;
 
@@ -27,17 +28,17 @@ function getCached(username: string): Repo[] | null {
   return entry.data;
 }
 
-function setCache(username: string, data: Repo[]): void {
-  const key = getCacheKey(username);
+function setCache(username: string, data: Repo[], token?: string): void {
+  const key = getCacheKey(username, token);
   cache.set(key, { data, timestamp: Date.now() });
 }
 
-async function fetchWithTimeout(url: string, controller: AbortController): Promise<import('node-fetch').Response> {
+async function fetchWithTimeout(url: string, controller: AbortController, token?: string): Promise<import('node-fetch').Response> {
   const timeoutId = setTimeout(() => controller.abort(), config.requestTimeoutMs);
   try {
     return await fetch(url, {
       headers: {
-        Authorization: `Bearer ${config.githubToken}`,
+        Authorization: `Bearer ${token || config.githubToken}`,
         'User-Agent': 'starred-randomizer',
       },
       signal: controller.signal,
@@ -47,13 +48,13 @@ async function fetchWithTimeout(url: string, controller: AbortController): Promi
   }
 }
 
-async function fetchStarredPage(username: string, page: number): Promise<GithubApiResponse | GithubApiError> {
+async function fetchStarredPage(username: string, page: number, token?: string): Promise<GithubApiResponse | GithubApiError> {
   const url = `${config.githubApiBaseUrl}/users/${username}/starred?page=${page}&per_page=${config.perPage}`;
   const controller = new AbortController();
 
   console.log(`[DEBUG] Fetching: ${url}`);
 
-  const res = await fetchWithTimeout(url, controller);
+  const res = await fetchWithTimeout(url, controller, token);
 
   console.log(`[DEBUG] GitHub API response: ${res.status}`);
 
@@ -72,8 +73,8 @@ async function fetchStarredPage(username: string, page: number): Promise<GithubA
   return { ok: true, data: data as Repo[], hasNext };
 }
 
-export async function fetchAllStarred(username: string): Promise<{ ok: false; status: number; body: unknown } | { ok: true; data: Repo[] }> {
-  const cached = getCached(username);
+export async function fetchAllStarred(username: string, token?: string): Promise<{ ok: false; status: number; body: unknown } | { ok: true; data: Repo[] }> {
+  const cached = getCached(username, token);
   if (cached) {
     console.log(`[INFO] Cache hit for ${username}, returning ${cached.length} repos`);
     return { ok: true, data: cached };
@@ -83,12 +84,12 @@ export async function fetchAllStarred(username: string): Promise<{ ok: false; st
   let allRepos: Repo[] = [];
 
   while (page <= config.maxPages) {
-    const result = await fetchStarredPage(username, page);
+    const result = await fetchStarredPage(username, page, token);
 
     if (!result.ok) {
       if (allRepos.length > 0) {
         console.warn(`[WARN] Error on page ${page}, returning ${allRepos.length} repos fetched so far`);
-        setCache(username, allRepos);
+        setCache(username, allRepos, token);
         return { ok: true, data: allRepos };
       }
       return result;
@@ -108,12 +109,12 @@ export async function fetchAllStarred(username: string): Promise<{ ok: false; st
     console.warn(`[WARN] Reached max pages limit (${config.maxPages})`);
   }
 
-  setCache(username, allRepos);
+  setCache(username, allRepos, token);
   return { ok: true, data: allRepos };
 }
 
-export function invalidateCache(username: string): void {
-  cache.delete(getCacheKey(username));
+export function invalidateCache(username: string, token?: string): void {
+  cache.delete(getCacheKey(username, token));
 }
 
 export function getCacheStats(): { size: number; keys: string[] } {

@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { RowDataPacket } from 'mysql2/promise';
 import { fetchAllStarred } from '../services/github';
 import { isValidGithubUsername } from '../utils/validation';
 import { getGithubErrorMessage } from '../utils/errors';
@@ -8,6 +9,16 @@ interface SearchQuery {
   language?: string;
   min_stars?: string;
   limit?: string;
+}
+
+interface DbUserToken {
+  github_token: string | null;
+}
+
+async function getUserToken(app: FastifyInstance, userId: string | null): Promise<string | undefined> {
+  if (!userId) return undefined;
+  const [rows] = await app.db.query<RowDataPacket[]>('SELECT github_token FROM users WHERE id = ?', [userId]);
+  return (rows[0] as DbUserToken | undefined)?.github_token ?? undefined;
 }
 
 export async function searchRoutes(app: FastifyInstance) {
@@ -27,7 +38,8 @@ export async function searchRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Formato username non valido' });
     }
 
-    const result = await fetchAllStarred(username);
+    const token = await getUserToken(app, request.userId);
+    const result = await fetchAllStarred(username, token);
 
     if (!result.ok) {
       return reply.status(result.status).send({
