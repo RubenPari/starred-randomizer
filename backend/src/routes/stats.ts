@@ -1,8 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { RowDataPacket } from 'mysql2/promise';
-import { fetchAllStarred } from '../services/github';
-import { isValidGithubUsername } from '../utils/validation';
-import { getGithubErrorMessage } from '../utils/errors';
+import { validateAndFetch } from '../utils/validate-and-fetch';
+import { config } from '../config';
 
 interface StarActivity {
   date: string;
@@ -20,41 +18,16 @@ interface TimelineStats {
   totalStars: number;
   avgStars: number;
   languages: LanguageStat[];
-  starActivity: StarActivity[];
+  repoCreationActivity: StarActivity[];
   monthlyActivity: StarActivity[];
   topTopics: { topic: string; count: number }[];
   archivedCount: number;
 }
 
-interface DbUserToken {
-  github_token: string | null;
-}
-
-async function getUserToken(app: FastifyInstance, userId: string | null): Promise<string | undefined> {
-  if (!userId) return undefined;
-  const [rows] = await app.db.query<RowDataPacket[]>('SELECT github_token FROM users WHERE id = ?', [userId]);
-  return (rows[0] as DbUserToken | undefined)?.github_token ?? undefined;
-}
-
 export async function statsRoutes(app: FastifyInstance) {
   app.get('/api/stats/:username', async (request: FastifyRequest<{ Params: { username: string } }>, reply: FastifyReply) => {
-    const { username } = request.params;
-
-    console.log(`[INFO] Stats request for username: ${username}`);
-
-    if (!isValidGithubUsername(username)) {
-      console.warn(`[WARN] Invalid username format: ${username}`);
-      return reply.status(400).send({ error: 'Formato username non valido' });
-    }
-
-    const token = await getUserToken(app, request.userId);
-    const result = await fetchAllStarred(username, token);
-
-    if (!result.ok) {
-      return reply.status(result.status).send({
-        error: getGithubErrorMessage(result.status),
-      });
-    }
+    const result = await validateAndFetch(app, request, reply);
+    if (!result) return;
 
     const repos = result.data;
     const totalStars = repos.reduce((sum, r) => sum + r.stargazers_count, 0);
@@ -89,7 +62,7 @@ export async function statsRoutes(app: FastifyInstance) {
       dailyMap.set(date, (dailyMap.get(date) ?? 0) + 1);
     }
 
-    const starActivity: StarActivity[] = Array.from(dailyMap.entries())
+    const repoCreationActivity: StarActivity[] = Array.from(dailyMap.entries())
       .map(([date, count]) => ({ date, count }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -103,7 +76,7 @@ export async function statsRoutes(app: FastifyInstance) {
     const topTopics = Array.from(topicMap.entries())
       .map(([topic, count]) => ({ topic, count }))
       .sort((a, b) => b.count - a.count)
-      .slice(0, 20);
+      .slice(0, config.topTopicsLimit);
 
     const archivedCount = repos.filter((r) => r.archived).length;
 
@@ -112,7 +85,7 @@ export async function statsRoutes(app: FastifyInstance) {
       totalStars,
       avgStars: repos.length > 0 ? Math.round(totalStars / repos.length) : 0,
       languages,
-      starActivity,
+      repoCreationActivity,
       monthlyActivity,
       topTopics,
       archivedCount,

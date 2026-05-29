@@ -1,16 +1,19 @@
-import fetch from 'node-fetch';
 import { config } from '../config';
 import type { Repo, GithubApiResponse, GithubApiError } from '../types';
+
+export type FetchAllStarredResult =
+  | { ok: false; status: number; body: unknown }
+  | { ok: true; data: Repo[] };
 
 interface CacheEntry {
   data: Repo[];
   timestamp: number;
+  partial?: boolean;
 }
 
 const cache = new Map<string, CacheEntry>();
 
 function getCacheKey(username: string, token?: string): string {
-  // Include token in cache key to avoid mixing cached data across different users/tokens
   return `starred:${username.toLowerCase()}:${token ? 'custom' : 'global'}`;
 }
 
@@ -25,15 +28,17 @@ function getCached(username: string, token?: string): Repo[] | null {
     return null;
   }
 
+  if (entry.partial) return null;
+
   return entry.data;
 }
 
-function setCache(username: string, data: Repo[], token?: string): void {
+function setCache(username: string, data: Repo[], token?: string, partial = false): void {
   const key = getCacheKey(username, token);
-  cache.set(key, { data, timestamp: Date.now() });
+  cache.set(key, { data, timestamp: Date.now(), partial });
 }
 
-async function fetchWithTimeout(url: string, controller: AbortController, token?: string): Promise<import('node-fetch').Response> {
+async function fetchWithTimeout(url: string, controller: AbortController, token?: string): Promise<Response> {
   const timeoutId = setTimeout(() => controller.abort(), config.requestTimeoutMs);
   try {
     return await fetch(url, {
@@ -52,11 +57,9 @@ async function fetchStarredPage(username: string, page: number, token?: string):
   const url = `${config.githubApiBaseUrl}/users/${username}/starred?page=${page}&per_page=${config.perPage}`;
   const controller = new AbortController();
 
-  console.log(`[DEBUG] Fetching: ${url}`);
+  console.log(`[INFO] Fetching page ${page} for ${username}`);
 
   const res = await fetchWithTimeout(url, controller, token);
-
-  console.log(`[DEBUG] GitHub API response: ${res.status}`);
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -68,12 +71,18 @@ async function fetchStarredPage(username: string, page: number, token?: string):
   const hasNext = linkHeader.includes('rel="next"');
 
   const data = await res.json();
-  console.log(`[DEBUG] Retrieved ${Array.isArray(data) ? data.length : 0} repositories${hasNext ? ' (has next page)' : ' (last page)'}`);
+  const repoCount = Array.isArray(data) ? data.length : 0;
+
+  console.log(`[INFO] Page ${page}: ${repoCount} repos${hasNext ? ' (more pages)' : ' (last page)'}`);
+
+  if (repoCount > 0) {
+    console.log(`[DEBUG] Page ${page} range: ${(data as Repo[])[0].full_name} → ${(data as Repo[])[repoCount - 1].full_name}`);
+  }
 
   return { ok: true, data: data as Repo[], hasNext };
 }
 
-export async function fetchAllStarred(username: string, token?: string): Promise<{ ok: false; status: number; body: unknown } | { ok: true; data: Repo[] }> {
+export async function fetchAllStarred(username: string, token?: string): Promise<FetchAllStarredResult> {
   const cached = getCached(username, token);
   if (cached) {
     console.log(`[INFO] Cache hit for ${username}, returning ${cached.length} repos`);
@@ -82,21 +91,36 @@ export async function fetchAllStarred(username: string, token?: string): Promise
 
   let page = 1;
   let allRepos: Repo[] = [];
+  const seen = new Set<string>();
 
   while (page <= config.maxPages) {
     const result = await fetchStarredPage(username, page, token);
 
     if (!result.ok) {
       if (allRepos.length > 0) {
-        console.warn(`[WARN] Error on page ${page}, returning ${allRepos.length} repos fetched so far`);
-        setCache(username, allRepos, token);
+        console.warn(`[WARN] Error on page ${page}, returning ${allRepos.length} repos fetched so far (partial, not cached)`);
         return { ok: true, data: allRepos };
       }
       return result;
     }
 
-    allRepos = allRepos.concat(result.data);
-    console.log(`[INFO] Fetched page ${page}: ${result.data.length} repos (total: ${allRepos.length})`);
+    if (result.data.length === 0) {
+      console.log(`[INFO] Empty page ${page}, stopping pagination`);
+      break;
+    }
+
+    let dupeCount = 0;
+    const newRepos = result.data.filter((repo) => {
+      if (seen.has(repo.full_name)) {
+        dupeCount++;
+        return false;
+      }
+      seen.add(repo.full_name);
+      return true;
+    });
+
+    allRepos = allRepos.concat(newRepos);
+    console.log(`[INFO] Page ${page}: ${result.data.length} fetched, ${newRepos.length} new${dupeCount > 0 ? `, ${dupeCount} dupes` : ''} | total: ${allRepos.length}`);
 
     if (!result.hasNext) {
       break;
@@ -108,6 +132,8 @@ export async function fetchAllStarred(username: string, token?: string): Promise
   if (page > config.maxPages) {
     console.warn(`[WARN] Reached max pages limit (${config.maxPages})`);
   }
+
+  console.log(`[INFO] Finished fetching ${username}: ${allRepos.length} total repos across ${page} page(s)`);
 
   setCache(username, allRepos, token);
   return { ok: true, data: allRepos };

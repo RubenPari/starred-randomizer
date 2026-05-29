@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { RowDataPacket } from 'mysql2/promise';
-import { fetchAllStarred } from '../services/github';
-import { isValidGithubUsername } from '../utils/validation';
-import { getGithubErrorMessage } from '../utils/errors';
+import { validateAndFetch } from '../utils/validate-and-fetch';
+import { filterRepos } from '../utils/filters';
+import { config } from '../config';
+import { safeParseInt } from './random';
 
 interface SearchQuery {
   q: string;
@@ -11,59 +11,37 @@ interface SearchQuery {
   limit?: string;
 }
 
-interface DbUserToken {
-  github_token: string | null;
-}
-
-async function getUserToken(app: FastifyInstance, userId: string | null): Promise<string | undefined> {
-  if (!userId) return undefined;
-  const [rows] = await app.db.query<RowDataPacket[]>('SELECT github_token FROM users WHERE id = ?', [userId]);
-  return (rows[0] as DbUserToken | undefined)?.github_token ?? undefined;
-}
-
 export async function searchRoutes(app: FastifyInstance) {
   app.get('/api/search/:username', async (request: FastifyRequest<{ Params: { username: string }; Querystring: SearchQuery }>, reply: FastifyReply) => {
-    const { username } = request.params;
     const { q, language, min_stars, limit } = request.query;
-    const maxResults = limit ? Math.min(parseInt(limit, 10), 100) : 50;
 
     if (!q || q.trim().length === 0) {
       return reply.status(400).send({ error: 'Parametro q richiesto' });
     }
 
-    console.log(`[INFO] Search request for username: ${username}, query: ${q}`);
+    const maxResults = Math.min(safeParseInt(limit, config.searchDefaultLimit), config.searchMaxLimit);
 
-    if (!isValidGithubUsername(username)) {
-      console.warn(`[WARN] Invalid username format: ${username}`);
-      return reply.status(400).send({ error: 'Formato username non valido' });
-    }
+    app.log.info(`Search request, query: ${q}`);
 
-    const token = await getUserToken(app, request.userId);
-    const result = await fetchAllStarred(username, token);
-
-    if (!result.ok) {
-      return reply.status(result.status).send({
-        error: getGithubErrorMessage(result.status),
-      });
-    }
+    const result = await validateAndFetch(app, request, reply);
+    if (!result) return;
 
     const query = q.toLowerCase();
-    const filtered = result.data.filter((repo) => {
-      const matchesQuery =
-        repo.full_name.toLowerCase().includes(query) ||
-        (repo.description?.toLowerCase() ?? '').includes(query) ||
-        repo.topics.some((t) => t.toLowerCase().includes(query)) ||
-        (repo.language?.toLowerCase() ?? '').includes(query);
+    const matchesQuery = (repo: import('../types').Repo) =>
+      repo.full_name.toLowerCase().includes(query) ||
+      (repo.description?.toLowerCase() ?? '').includes(query) ||
+      repo.topics.some((t) => t.toLowerCase().includes(query)) ||
+      (repo.language?.toLowerCase() ?? '').includes(query);
 
-      if (!matchesQuery) return false;
-      if (language && repo.language?.toLowerCase() !== language.toLowerCase()) return false;
-      if (min_stars && repo.stargazers_count < parseInt(min_stars, 10)) return false;
-
-      return true;
+    const baseFiltered = filterRepos(result.data, {
+      language,
+      min_stars: safeParseInt(min_stars, 0) || undefined,
     });
 
+    const filtered = baseFiltered.filter(matchesQuery);
+
     const results = filtered.slice(0, maxResults);
-    console.log(`[INFO] Search found ${results.length} results`);
+    app.log.info(`Search found ${results.length} results`);
     return results;
   });
 }
