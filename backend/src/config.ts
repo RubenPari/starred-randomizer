@@ -29,8 +29,23 @@ function parseIntEnv(val: string | undefined, fallback: number): number {
   return Number.isNaN(n) ? fallback : n;
 }
 
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const COOKIE_SECRET = process.env.COOKIE_SECRET || 'cookie-secret-change-in-production';
+
+if (process.env.NODE_ENV === 'production') {
+  if (JWT_SECRET === 'dev-secret-change-in-production') {
+    console.error('[FATAL] JWT_SECRET must be set in production');
+    process.exit(1);
+  }
+  if (COOKIE_SECRET === 'cookie-secret-change-in-production') {
+    console.error('[FATAL] COOKIE_SECRET must be set in production');
+    process.exit(1);
+  }
+}
+
 export const config = {
   port: parsePort(process.env.PORT),
+  host: process.env.HOST || '0.0.0.0',
   githubToken: GITHUB_TOKEN,
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   githubApiBaseUrl: 'https://api.github.com',
@@ -43,4 +58,15 @@ export const config = {
   dbUser: process.env.DB_USER || 'root',
   dbPassword: process.env.DB_PASSWORD || '',
   dbName: process.env.DB_NAME || 'starred_randomizer',
+  jwtSecret: JWT_SECRET,
+  cookieSecret: COOKIE_SECRET,
+  jwtExpiry: process.env.JWT_EXPIRY || '7d',
+  cookieMaxAge: parseIntEnv(process.env.COOKIE_MAX_AGE, 60 * 60 * 24 * 7),
+  hiddenGemsMaxStars: parseIntEnv(process.env.HIDDEN_GEMS_MAX_STARS, 100),
+  hiddenGemsDefaultLimit: parseIntEnv(process.env.HIDDEN_GEMS_DEFAULT_LIMIT, 10),
+  hiddenGemsMaxLimit: parseIntEnv(process.env.HIDDEN_GEMS_MAX_LIMIT, 20),
+  searchDefaultLimit: parseIntEnv(process.env.SEARCH_DEFAULT_LIMIT, 50),
+  searchMaxLimit: parseIntEnv(process.env.SEARCH_MAX_LIMIT, 100),
+  topTopicsLimit: parseIntEnv(process.env.TOP_TOPICS_LIMIT, 20),
+  minPasswordLength: parseIntEnv(process.env.MIN_PASSWORD_LENGTH, 8),
 };

@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
 import argon2 from 'argon2';
 import crypto from 'crypto';
-import { createPool, type Pool, type RowDataPacket, type ResultSetHeader } from 'mysql2/promise';
+import { createPool, type Pool, type RowDataPacket } from 'mysql2/promise';
 import { config } from '../config';
 
 declare module 'fastify' {
@@ -29,8 +29,6 @@ interface DbUserPublic {
   created_at: string;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
-const COOKIE_SECRET = process.env.COOKIE_SECRET || 'cookie-secret-change-in-production';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function initSchema(pool: Pool) {
@@ -73,11 +71,6 @@ async function findUserByEmail(pool: Pool, email: string): Promise<DbUser | null
   return (rows[0] as DbUser | undefined) ?? null;
 }
 
-async function findUserById(pool: Pool, id: string): Promise<DbUser | null> {
-  const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM users WHERE id = ?', [id]);
-  return (rows[0] as DbUser | undefined) ?? null;
-}
-
 async function findUserPublicById(pool: Pool, id: string): Promise<DbUserPublic | null> {
   const [rows] = await pool.query<RowDataPacket[]>('SELECT id, email, created_at FROM users WHERE id = ?', [id]);
   return (rows[0] as DbUserPublic | undefined) ?? null;
@@ -89,6 +82,13 @@ async function createUser(pool: Pool, id: string, email: string, passwordHash: s
 
 async function updateUserToken(pool: Pool, userId: string, token: string | null): Promise<void> {
   await pool.execute('UPDATE users SET github_token = ? WHERE id = ?', [token, userId]);
+}
+
+class UnauthorizedError extends Error {
+  constructor() {
+    super('Unauthorized');
+    this.name = 'UnauthorizedError';
+  }
 }
 
 async function dbAndAuthPlugin(app: FastifyInstance) {
@@ -107,18 +107,18 @@ async function dbAndAuthPlugin(app: FastifyInstance) {
   app.decorate('db', pool);
 
   await app.register(import('@fastify/cookie'), {
-    secret: COOKIE_SECRET,
+    secret: config.cookieSecret,
     parseOptions: {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       path: '/',
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: config.cookieMaxAge,
     },
   });
 
   await app.register(import('@fastify/jwt'), {
-    secret: JWT_SECRET,
+    secret: config.jwtSecret,
     cookie: {
       cookieName: 'token',
       signed: false,
@@ -136,10 +136,18 @@ async function dbAndAuthPlugin(app: FastifyInstance) {
     }
   });
 
-  app.decorate('requireAuth', async function (request: FastifyRequest, reply: FastifyReply) {
+  app.decorate('requireAuth', async function (request: FastifyRequest, _reply: FastifyReply) {
     if (!request.userId) {
+      throw new UnauthorizedError();
+    }
+  });
+
+  app.setErrorHandler((error, _request, reply) => {
+    if (error instanceof UnauthorizedError) {
       return reply.status(401).send({ error: 'Autenticazione richiesta' });
     }
+    app.log.error(error);
+    return reply.status(500).send({ error: 'Errore interno del server' });
   });
 
   app.post('/api/auth/register', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -150,8 +158,8 @@ async function dbAndAuthPlugin(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Email non valida' });
     }
 
-    if (!password || password.length < 8) {
-      return reply.status(400).send({ error: 'La password deve avere almeno 8 caratteri' });
+    if (!password || password.length < config.minPasswordLength) {
+      return reply.status(400).send({ error: `La password deve avere almeno ${config.minPasswordLength} caratteri` });
     }
 
     const existing = await findUserByEmail(pool, email.toLowerCase());
@@ -164,7 +172,7 @@ async function dbAndAuthPlugin(app: FastifyInstance) {
 
     await createUser(pool, id, email.toLowerCase(), passwordHash);
 
-    const token = app.jwt.sign({ userId: id }, { expiresIn: '7d' });
+    const token = app.jwt.sign({ userId: id }, { expiresIn: config.jwtExpiry });
     reply.setCookie('token', token, { path: '/' });
 
     return { id, email: email.toLowerCase() };
@@ -188,7 +196,7 @@ async function dbAndAuthPlugin(app: FastifyInstance) {
       return reply.status(401).send({ error: 'Credenziali non valide' });
     }
 
-    const token = app.jwt.sign({ userId: user.id }, { expiresIn: '7d' });
+    const token = app.jwt.sign({ userId: user.id }, { expiresIn: config.jwtExpiry });
     reply.setCookie('token', token, { path: '/' });
 
     return { id: user.id, email: user.email };
@@ -215,7 +223,6 @@ async function dbAndAuthPlugin(app: FastifyInstance) {
 
   app.put('/api/auth/me/token', async (request: FastifyRequest, reply: FastifyReply) => {
     await app.requireAuth(request, reply);
-    const userId = request.userId!;
 
     const body = request.body as { token?: string };
     const { token } = body;
@@ -224,7 +231,7 @@ async function dbAndAuthPlugin(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Token mancante' });
     }
 
-    await updateUserToken(pool, userId, token || null);
+    await updateUserToken(pool, request.userId!, token || null);
     return { message: 'Token aggiornato' };
   });
 }
