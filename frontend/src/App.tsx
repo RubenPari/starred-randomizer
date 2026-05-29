@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, useContext } from 'r
 import axios from 'axios';
 import { AuthContext } from './contexts/AuthContext';
 import AuthModal from './components/AuthModal';
+import SettingsPanel from './components/SettingsPanel';
 import { SkeletonCard } from './components/SkeletonCard';
 import StatisticsPanel from './components/StatisticsPanel';
 import Header from './components/Header';
@@ -24,7 +25,7 @@ import { IconZap } from './components/Icons';
 const DEFAULT_USERNAME = 'RubenPari';
 
 function AppContent() {
-  const { user, login, register, logout, loading: authLoading } = useContext(AuthContext);
+  const { user, login, register, logout, updateToken, loading: authLoading } = useContext(AuthContext);
   const [username, setUsername] = useState(DEFAULT_USERNAME);
   const [filters, setFilters] = useState<{ language: string; min_stars: number }>({ language: '', min_stars: 0 });
   const [shufflePhase, setShufflePhase] = useState(false);
@@ -37,6 +38,7 @@ function AppContent() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'randomizer' | 'search' | 'gems' | 'stats' | 'favorites'>('randomizer');
   const resultRef = useRef<HTMLDivElement>(null);
 
@@ -181,6 +183,7 @@ function AppContent() {
           onAuthClick={() => setAuthModalOpen(true)}
           onLogout={logout}
           userEmail={user?.email ?? null}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
 
         {loading && repos.length === 0 ? (
@@ -347,6 +350,12 @@ function AppContent() {
         onClose={() => setAuthModalOpen(false)}
         onLogin={login}
         onRegister={register}
+      />
+
+      <SettingsPanel
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onSaveToken={updateToken}
       />
     </div>
   );

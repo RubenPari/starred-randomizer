@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { IconDice, IconSun, IconMoon, IconUser } from './Icons';
+import { IconDice, IconSun, IconMoon, IconUser, IconLogout, IconSettings } from './Icons';
 
 interface HeaderProps {
   darkMode: boolean;
@@ -10,9 +10,10 @@ interface HeaderProps {
   onAuthClick: () => void;
   onLogout: () => void;
   userEmail: string | null;
+  onOpenSettings: () => void;
 }
 
-export default function Header({ darkMode, toggleTheme, username, onUsernameChange, isAuthenticated, onAuthClick, onLogout, userEmail }: HeaderProps) {
+export default function Header({ darkMode, toggleTheme, username, onUsernameChange, isAuthenticated, onAuthClick, onLogout, userEmail, onOpenSettings }: HeaderProps) {
   const [inputValue, setInputValue] = useState(username);
 
   const handleSubmit = useCallback(() => {
@@ -43,19 +44,28 @@ export default function Header({ darkMode, toggleTheme, username, onUsernameChan
           )}
         </button>
         {isAuthenticated ? (
-          <div className="relative group">
+          <>
+            <div className="relative group">
+              <button
+                className="p-2.5 rounded-xl bg-surface border border-surface-3 hover:bg-surface-2 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-brand/50"
+                onClick={onOpenSettings}
+                aria-label={`Impostazioni account ${userEmail}`}
+                title={userEmail ?? ''}
+              >
+                <IconSettings className="w-5 h-5 text-brand" />
+              </button>
+              <span className="absolute right-0 top-full mt-1 px-2 py-1 bg-surface border border-surface-3 rounded text-xs text-muted whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                {userEmail}
+              </span>
+            </div>
             <button
-              className="p-2.5 rounded-xl bg-surface border border-surface-3 hover:bg-surface-2 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-brand/50"
               onClick={onLogout}
-              aria-label={`Esci da ${userEmail}`}
-              title={userEmail ?? ''}
+              className="p-2.5 rounded-xl bg-surface border border-surface-3 hover:bg-surface-2 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-brand/50"
+              aria-label="Esci"
             >
-              <IconUser className="w-5 h-5 text-brand" />
+              <IconLogout className="w-5 h-5 text-red-400" />
             </button>
-            <span className="absolute right-0 top-full mt-1 px-2 py-1 bg-surface border border-surface-3 rounded text-xs text-muted whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-              {userEmail}
-            </span>
-          </div>
+          </>
         ) : (
           <button
             onClick={onAuthClick}

@@ -1,12 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { IconUser, IconLogout } from './Icons';
+import { IconUser, IconLogout, IconSettings } from './Icons';
 
 interface UserMenuProps {
   email: string;
   onLogout: () => void;
+  onOpenSettings: () => void;
 }
 
-export default function UserMenu({ email, onLogout }: UserMenuProps) {
+export default function UserMenu({ email, onLogout, onOpenSettings }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -40,6 +41,13 @@ export default function UserMenu({ email, onLogout }: UserMenuProps) {
           <div className="p-3 border-b border-surface-3">
             <p className="text-sm font-medium text-primary truncate">{email}</p>
           </div>
+          <button
+            onClick={() => { onOpenSettings(); setOpen(false); }}
+            className="w-full px-4 py-3 text-left text-sm text-secondary hover:bg-surface-2 transition-colors flex items-center gap-2"
+          >
+            <IconSettings className="w-4 h-4" />
+            Impostazioni
+          </button>
           <button
             onClick={handleLogout}
             className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-surface-2 transition-colors flex items-center gap-2"

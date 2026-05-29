@@ -13,6 +13,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateToken: (token: string) => Promise<void>;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -22,6 +23,7 @@ export const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   register: async () => {},
   logout: async () => {},
+  updateToken: async () => {},
 });
 
 axios.defaults.withCredentials = true;
@@ -52,8 +54,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const updateToken = useCallback(async (token: string) => {
+    await axios.put('/api/auth/me/token', { token });
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateToken }}>
       {children}
     </AuthContext.Provider>
   );
