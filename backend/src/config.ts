@@ -1,7 +1,13 @@
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 
-dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
+const parentEnv = path.resolve(process.cwd(), '../.env');
+if (fs.existsSync(parentEnv)) {
+  dotenv.config({ path: parentEnv });
+} else {
+  dotenv.config();
+}
 
 function parsePort(portStr: string | undefined): number {
   if (!portStr) return 3001;
@@ -13,8 +19,14 @@ function parsePort(portStr: string | undefined): number {
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
 if (!GITHUB_TOKEN) {
-  console.error('[FATAL] GITHUB_TOKEN non è definito nel file .env');
+  console.error('[FATAL] GITHUB_TOKEN non è definito');
   process.exit(1);
+}
+
+function parseIntEnv(val: string | undefined, fallback: number): number {
+  if (!val) return fallback;
+  const n = Number(val);
+  return Number.isNaN(n) ? fallback : n;
 }
 
 export const config = {
@@ -25,5 +37,10 @@ export const config = {
   perPage: 100,
   maxPages: 20,
   requestTimeoutMs: 15_000,
-  cacheTtlMs: 5 * 60 * 1000, // 5 minutes
+  cacheTtlMs: 5 * 60 * 1000,
+  dbHost: process.env.DB_HOST || 'localhost',
+  dbPort: parseIntEnv(process.env.DB_PORT, 3306),
+  dbUser: process.env.DB_USER || 'root',
+  dbPassword: process.env.DB_PASSWORD || '',
+  dbName: process.env.DB_NAME || 'starred_randomizer',
 };

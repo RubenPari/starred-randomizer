@@ -1,5 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import fastifyStatic from '@fastify/static';
+import path from 'path';
 import { config } from './config';
 import dbAndAuthPlugin from './plugins/auth';
 import { starredRoutes } from './routes/starred';
@@ -10,6 +12,8 @@ import { statsRoutes } from './routes/stats';
 import { favoritesRoutes } from './routes/favorites';
 import { getCacheStats } from './services/github';
 
+const FRONTEND_DIST = path.resolve(__dirname, '../../frontend/dist');
+
 const app = Fastify({
   logger: {
     level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
@@ -18,6 +22,16 @@ const app = Fastify({
 
 async function bootstrap() {
   await app.register(cors, { origin: config.corsOrigin, credentials: true });
+
+  try {
+    await app.register(fastifyStatic, {
+      root: FRONTEND_DIST,
+      prefix: '/',
+    });
+    console.log(`[INFO] Serving static frontend from ${FRONTEND_DIST}`);
+  } catch (err) {
+    console.warn('[WARN] Could not register static file server, frontend not available:', err);
+  }
 
   await app.register(dbAndAuthPlugin);
 
@@ -43,12 +57,19 @@ async function bootstrap() {
   await app.register(statsRoutes);
   await app.register(favoritesRoutes);
 
+  app.setNotFoundHandler(async (request, reply) => {
+    if (request.url.startsWith('/api/')) {
+      return reply.status(404).send({ error: 'Not found' });
+    }
+    return reply.type('text/html').sendFile('index.html');
+  });
+
   const signals = ['SIGTERM', 'SIGINT'] as const;
   signals.forEach((signal) => {
     process.on(signal, async () => {
       console.log(`[INFO] Received ${signal}, shutting down gracefully...`);
       try {
-        app.db.close();
+        await app.db.end();
         await app.close();
         console.log('[INFO] Server closed successfully');
         process.exit(0);

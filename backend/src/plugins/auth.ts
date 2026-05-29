@@ -1,28 +1,25 @@
-import Database from 'better-sqlite3';
-import path from 'path';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
 import argon2 from 'argon2';
 import crypto from 'crypto';
-import type { Database as DatabaseType, Statement } from 'better-sqlite3';
+import { createPool, type Pool, type RowDataPacket, type ResultSetHeader } from 'mysql2/promise';
+import { config } from '../config';
 
 declare module 'fastify' {
   interface FastifyInstance {
     requireAuth: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
-    db: DatabaseType;
-    stmt: ReturnType<typeof initStatements>;
+    db: Pool;
   }
   interface FastifyRequest {
     userId: string | null;
   }
 }
 
-const DB_PATH = path.resolve(process.cwd(), '../starred.db');
-
 interface DbUser {
   id: string;
   email: string;
   password_hash: string;
+  github_token: string | null;
   created_at: string;
 }
 
@@ -32,55 +29,82 @@ interface DbUserPublic {
   created_at: string;
 }
 
-interface DbFavorite {
-  id: string;
-  repo_json: string;
-  created_at: string;
-}
-
-function initStatements(db: DatabaseType) {
-  return {
-    findUserByEmail: db.prepare('SELECT * FROM users WHERE email = ?') as Statement<[string], DbUser>,
-    findUserById: db.prepare('SELECT id, email, created_at FROM users WHERE id = ?') as Statement<[string], DbUserPublic>,
-    createUser: db.prepare('INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)') as Statement<[string, string, string]>,
-    getFavorites: db.prepare('SELECT id, repo_json, created_at FROM favorites WHERE user_id = ? ORDER BY created_at DESC') as Statement<[string], DbFavorite>,
-    addFavorite: db.prepare('INSERT INTO favorites (id, user_id, full_name, repo_json) VALUES (?, ?, ?, ?)') as Statement<[string, string, string, string]>,
-    removeFavorite: db.prepare('DELETE FROM favorites WHERE user_id = ? AND full_name = ?') as Statement<[string, string]>,
-    isFavorite: db.prepare('SELECT 1 FROM favorites WHERE user_id = ? AND full_name = ?') as Statement<[string, string], { '1': number }>,
-  };
-}
-
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 const COOKIE_SECRET = process.env.COOKIE_SECRET || 'cookie-secret-change-in-production';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-async function dbAndAuthPlugin(app: FastifyInstance) {
-  const db = new Database(DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-
-  db.exec(`
+async function initSchema(pool: Pool) {
+  await pool.execute(`
     CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      email TEXT UNIQUE NOT NULL,
+      id VARCHAR(36) PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS favorites (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      full_name TEXT NOT NULL,
-      repo_json TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(user_id, full_name)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON favorites(user_id);
+      github_token TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
   `);
 
-  app.decorate('db', db);
-  app.decorate('stmt', initStatements(db));
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS favorites (
+      id VARCHAR(36) PRIMARY KEY,
+      user_id VARCHAR(36) NOT NULL,
+      full_name VARCHAR(255) NOT NULL,
+      repo_json TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, full_name),
+      CONSTRAINT fk_favorites_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  try {
+    await pool.execute(`
+      CREATE INDEX idx_favorites_user_id ON favorites(user_id)
+    `);
+  } catch (err: unknown) {
+    const e = err as { code?: string; message?: string };
+    if (e.code !== 'ER_DUP_KEYNAME' && !e.message?.includes('Duplicate key name')) {
+      throw err;
+    }
+  }
+}
+
+async function findUserByEmail(pool: Pool, email: string): Promise<DbUser | null> {
+  const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM users WHERE email = ?', [email]);
+  return (rows[0] as DbUser | undefined) ?? null;
+}
+
+async function findUserById(pool: Pool, id: string): Promise<DbUser | null> {
+  const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM users WHERE id = ?', [id]);
+  return (rows[0] as DbUser | undefined) ?? null;
+}
+
+async function findUserPublicById(pool: Pool, id: string): Promise<DbUserPublic | null> {
+  const [rows] = await pool.query<RowDataPacket[]>('SELECT id, email, created_at FROM users WHERE id = ?', [id]);
+  return (rows[0] as DbUserPublic | undefined) ?? null;
+}
+
+async function createUser(pool: Pool, id: string, email: string, passwordHash: string): Promise<void> {
+  await pool.execute('INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)', [id, email, passwordHash]);
+}
+
+async function updateUserToken(pool: Pool, userId: string, token: string | null): Promise<void> {
+  await pool.execute('UPDATE users SET github_token = ? WHERE id = ?', [token, userId]);
+}
+
+async function dbAndAuthPlugin(app: FastifyInstance) {
+  const pool = createPool({
+    host: config.dbHost,
+    port: config.dbPort,
+    user: config.dbUser,
+    password: config.dbPassword,
+    database: config.dbName,
+    waitForConnections: true,
+    connectionLimit: 10,
+  });
+
+  await initSchema(pool);
+
+  app.decorate('db', pool);
 
   await app.register(import('@fastify/cookie'), {
     secret: COOKIE_SECRET,
@@ -130,15 +154,15 @@ async function dbAndAuthPlugin(app: FastifyInstance) {
       return reply.status(400).send({ error: 'La password deve avere almeno 8 caratteri' });
     }
 
-    const existing = app.stmt.findUserByEmail.get(email.toLowerCase());
+    const existing = await findUserByEmail(pool, email.toLowerCase());
     if (existing) {
-      return reply.status(409).send({ error: 'Email giÃ  registrata' });
+      return reply.status(409).send({ error: 'Email già registrata' });
     }
 
     const passwordHash = await argon2.hash(password);
     const id = crypto.randomUUID();
 
-    app.stmt.createUser.run(id, email.toLowerCase(), passwordHash);
+    await createUser(pool, id, email.toLowerCase(), passwordHash);
 
     const token = app.jwt.sign({ userId: id }, { expiresIn: '7d' });
     reply.setCookie('token', token, { path: '/' });
@@ -154,7 +178,7 @@ async function dbAndAuthPlugin(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Email e password sono obbligatori' });
     }
 
-    const user = app.stmt.findUserByEmail.get(email.toLowerCase());
+    const user = await findUserByEmail(pool, email.toLowerCase());
     if (!user) {
       return reply.status(401).send({ error: 'Credenziali non valide' });
     }
@@ -180,13 +204,28 @@ async function dbAndAuthPlugin(app: FastifyInstance) {
       return reply.status(401).send({ error: 'Non autenticato' });
     }
 
-    const user = app.stmt.findUserById.get(request.userId);
+    const user = await findUserPublicById(pool, request.userId);
     if (!user) {
       reply.clearCookie('token', { path: '/' });
       return reply.status(401).send({ error: 'Utente non trovato' });
     }
 
     return user;
+  });
+
+  app.put('/api/auth/me/token', async (request: FastifyRequest, reply: FastifyReply) => {
+    await app.requireAuth(request, reply);
+    const userId = request.userId!;
+
+    const body = request.body as { token?: string };
+    const { token } = body;
+
+    if (token === undefined) {
+      return reply.status(400).send({ error: 'Token mancante' });
+    }
+
+    await updateUserToken(pool, userId, token || null);
+    return { message: 'Token aggiornato' };
   });
 }
 
