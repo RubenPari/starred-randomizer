@@ -14,10 +14,10 @@ export function timeAgo(dateString: string, short = false): string {
 
   if (short) {
     if (seconds < 60) return 'ora';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}min`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
     if (seconds < 2592000) return `${Math.floor(seconds / 86400)}g`;
-    if (seconds < 31536000) return `${Math.floor(seconds / 2592000)}m`;
+    if (seconds < 31536000) return `${Math.floor(seconds / 2592000)}mes`;
     return `${Math.floor(seconds / 31536000)}a`;
   }
 

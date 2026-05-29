@@ -20,9 +20,11 @@ import { useRandomRepo } from './hooks/useRandomRepo';
 import { useFavorites } from './hooks/useFavorites';
 import { useTheme } from './hooks/useTheme';
 import type { Repo, HiddenGemScore, RepoStats } from './types';
-import { IconZap } from './components/Icons';
+import { IconZap, IconGitHub } from './components/Icons';
+import { handleApiError } from './utils/format';
 
 const DEFAULT_USERNAME = 'RubenPari';
+const HIDDEN_GEMS_LIMIT = 10;
 
 function AppContent() {
   const { user, login, register, logout, updateToken, loading: authLoading } = useContext(AuthContext);
@@ -31,6 +33,7 @@ function AppContent() {
   const [shufflePhase, setShufflePhase] = useState(false);
   const [searchResults, setSearchResults] = useState<Repo[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [gems, setGems] = useState<HiddenGemScore[]>([]);
   const [gemsLoading, setGemsLoading] = useState(false);
   const [gemsError, setGemsError] = useState<string | null>(null);
@@ -39,6 +42,12 @@ function AppContent() {
   const [statsError, setStatsError] = useState<string | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      setAuthModalOpen(true);
+    }
+  }, [authLoading, user]);
   const [activeTab, setActiveTab] = useState<'randomizer' | 'search' | 'gems' | 'stats' | 'favorites'>('randomizer');
   const resultRef = useRef<HTMLDivElement>(null);
 
@@ -62,7 +71,10 @@ function AppContent() {
     [repos]
   );
 
-  const maxStars = repos.length > 0 ? Math.max(...repos.map((r) => r.stargazers_count)) : 100;
+  const maxStars = useMemo(
+    () => repos.reduce((max, r) => Math.max(max, r.stargazers_count), 0) || 100,
+    [repos]
+  );
 
   useEffect(() => {
     fetchStarred(username);
@@ -77,8 +89,6 @@ function AppContent() {
       resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 100);
   }, [username, filters, filteredRepos.length, getRandom]);
-
-  const handleShuffleComplete = useCallback(() => {}, []);
 
   const resetFilters = useCallback(() => {
     setFilters({ language: '', min_stars: 0 });
@@ -95,10 +105,12 @@ function AppContent() {
 
   const handleSearch = useCallback(async (query: string) => {
     setSearchLoading(true);
+    setSearchError(null);
     try {
       const res = await axios.get<Repo[]>(`/api/search/${username}`, { params: { q: query } });
       setSearchResults(res.data);
-    } catch {
+    } catch (err) {
+      setSearchError(handleApiError(err));
       setSearchResults([]);
     } finally {
       setSearchLoading(false);
@@ -107,11 +119,12 @@ function AppContent() {
 
   const handleClearSearch = useCallback(() => {
     setSearchResults([]);
+    setSearchError(null);
   }, []);
 
   const [searchSelectedRepo, setRandomRepoFromSearch] = useState<Repo | null>(null);
 
-  const handleSelectSearchResult = useCallback((repo: Repo) => {
+  const handleSelectRepo = useCallback((repo: Repo) => {
     setRandomRepoFromSearch(repo);
     setActiveTab('randomizer');
     setTimeout(() => {
@@ -123,23 +136,15 @@ function AppContent() {
     setGemsLoading(true);
     setGemsError(null);
     try {
-      const res = await axios.get<HiddenGemScore[]>(`/api/hidden-gems/${username}`, { params: { limit: 10 } });
+      const res = await axios.get<HiddenGemScore[]>(`/api/hidden-gems/${username}`, { params: { limit: HIDDEN_GEMS_LIMIT } });
       setGems(res.data);
-    } catch {
-      setGemsError('Errore nel recupero degli hidden gems');
+    } catch (err) {
+      setGemsError(handleApiError(err));
       setGems([]);
     } finally {
       setGemsLoading(false);
     }
   }, [username]);
-
-  const handleSelectGem = useCallback((repo: Repo) => {
-    setRandomRepoFromSearch(repo);
-    setActiveTab('randomizer');
-    setTimeout(() => {
-      resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 100);
-  }, []);
 
   const handleFetchStats = useCallback(async () => {
     setStatsLoading(true);
@@ -147,8 +152,8 @@ function AppContent() {
     try {
       const res = await axios.get<RepoStats>(`/api/stats/${username}`);
       setStats(res.data);
-    } catch {
-      setStatsError('Errore nel recupero delle statistiche');
+    } catch (err) {
+      setStatsError(handleApiError(err));
       setStats(null);
     } finally {
       setStatsLoading(false);
@@ -250,10 +255,7 @@ function AppContent() {
             {loading && repos.length > 0 && <SkeletonCard />}
 
             {shufflePhase && filteredRepos.length > 0 && (
-              <ShuffleAnimation
-                filteredRepos={filteredRepos}
-                onComplete={handleShuffleComplete}
-              />
+              <ShuffleAnimation filteredRepos={filteredRepos} />
             )}
 
             {(randomRepo || searchSelectedRepo) && !shufflePhase && (
@@ -288,7 +290,8 @@ function AppContent() {
             onClear={handleClearSearch}
             isLoading={searchLoading}
             results={searchResults}
-            onSelect={handleSelectSearchResult}
+            onSelect={handleSelectRepo}
+            error={searchError}
           />
         )}
 
@@ -298,7 +301,7 @@ function AppContent() {
             loading={gemsLoading}
             error={gemsError}
             onFetch={handleFetchGems}
-            onSelect={handleSelectGem}
+            onSelect={handleSelectRepo}
           />
         )}
 
@@ -310,8 +313,8 @@ function AppContent() {
               error={statsError}
               onFetch={handleFetchStats}
             />
-            {stats && stats.starActivity.length > 0 && (
-              <TimelineHeatmap activity={stats.starActivity} />
+            {stats && stats.repoCreationActivity && stats.repoCreationActivity.length > 0 && (
+              <TimelineHeatmap activity={stats.repoCreationActivity} />
             )}
           </>
         )}
@@ -321,7 +324,7 @@ function AppContent() {
             favorites={favorites}
             onRemove={removeFavorite}
             onClear={clearFavorites}
-            onSelect={handleSelectGem}
+            onSelect={handleSelectRepo}
           />
         )}
 
@@ -338,7 +341,7 @@ function AppContent() {
               rel="noopener noreferrer"
               className="flex items-center gap-1 hover:text-brand transition-colors"
             >
-              <span className="icon-github w-3.5 h-3.5" />
+              <IconGitHub className="w-3.5 h-3.5" />
               GitHub
             </a>
           </div>

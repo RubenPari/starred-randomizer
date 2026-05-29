@@ -1,38 +1,46 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import type { Repo } from '../types';
 import LanguageBadge from './LanguageBadge';
 import { IconStar } from './Icons';
 import { formatStars } from '../utils/format';
 
+const SHUFFLE_COUNT = 6;
+const SHUFFLE_INTERVAL = 120;
+const SHUFFLE_FINAL_DELAY = 200;
+
 interface ShuffleAnimationProps {
   filteredRepos: Repo[];
-  onComplete: (randomRepo: Repo) => void;
 }
 
-export default function ShuffleAnimation({ filteredRepos, onComplete }: ShuffleAnimationProps) {
+export default function ShuffleAnimation({ filteredRepos }: ShuffleAnimationProps) {
   const [currentRepo, setCurrentRepo] = useState<Repo | null>(null);
+  const cancelledRef = useRef(false);
 
   const runShuffle = useCallback(async () => {
-    const shuffleCount = 6;
+    if (filteredRepos.length === 0) return;
+    cancelledRef.current = false;
+
     const randomIndex = Math.floor(Math.random() * filteredRepos.length);
     const finalRepo = filteredRepos[randomIndex];
 
-    for (let i = 0; i < shuffleCount; i++) {
+    for (let i = 0; i < SHUFFLE_COUNT; i++) {
+      if (cancelledRef.current) return;
       const idx = Math.floor(Math.random() * filteredRepos.length);
       setCurrentRepo(filteredRepos[idx]);
-      await new Promise((resolve) => setTimeout(resolve, 120));
+      await new Promise((resolve) => setTimeout(resolve, SHUFFLE_INTERVAL));
     }
 
+    if (cancelledRef.current) return;
     setCurrentRepo(finalRepo);
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    onComplete(finalRepo);
-  }, [filteredRepos, onComplete]);
+    await new Promise((resolve) => setTimeout(resolve, SHUFFLE_FINAL_DELAY));
+  }, [filteredRepos]);
 
   useEffect(() => {
-    if (filteredRepos.length > 0) {
-      runShuffle();
-    }
-  }, [runShuffle, filteredRepos]);
+    runShuffle();
+    return () => {
+      cancelledRef.current = true;
+    };
+  }, [runShuffle]);
 
   if (!currentRepo) return null;
 
