@@ -28,18 +28,18 @@ async function bootstrap() {
       root: FRONTEND_DIST,
       prefix: '/',
     });
-    console.log(`[INFO] Serving static frontend from ${FRONTEND_DIST}`);
+    app.log.info(`Serving static frontend from ${FRONTEND_DIST}`);
   } catch (err) {
-    console.warn('[WARN] Could not register static file server, frontend not available:', err);
+    app.log.warn({ err }, 'Could not register static file server, frontend not available');
   }
 
   await app.register(dbAndAuthPlugin);
 
-  console.log(`[INFO] GITHUB_TOKEN caricato: [REDACTED]`);
-  console.log(`[INFO] CORS origin: ${config.corsOrigin}`);
-  console.log(`[INFO] Cache TTL: ${config.cacheTtlMs / 1000}s`);
-  console.log(`[INFO] Request timeout: ${config.requestTimeoutMs}ms`);
-  console.log(`[INFO] Starting server on port ${config.port}`);
+  app.log.info(`GITHUB_TOKEN caricato: [REDACTED]`);
+  app.log.info(`CORS origin: ${config.corsOrigin}`);
+  app.log.info(`Cache TTL: ${config.cacheTtlMs / 1000}s`);
+  app.log.info(`Request timeout: ${config.requestTimeoutMs}ms`);
+  app.log.info(`Starting server on port ${config.port}`);
 
   app.get('/api/health', async () => {
     return {
@@ -67,24 +67,24 @@ async function bootstrap() {
   const signals = ['SIGTERM', 'SIGINT'] as const;
   signals.forEach((signal) => {
     process.on(signal, async () => {
-      console.log(`[INFO] Received ${signal}, shutting down gracefully...`);
+      app.log.info(`Received ${signal}, shutting down gracefully...`);
       try {
         await app.db.end();
         await app.close();
-        console.log('[INFO] Server closed successfully');
+        app.log.info('Server closed successfully');
         process.exit(0);
       } catch (err) {
-        console.error('[ERROR] Error during shutdown:', err);
+        app.log.fatal({ err }, 'Error during shutdown');
         process.exit(1);
       }
     });
   });
 
   try {
-    await app.listen({ port: config.port, host: '0.0.0.0' });
-    console.log(`Server in ascolto su http://localhost:${config.port}`);
+    await app.listen({ port: config.port, host: config.host });
+    app.log.info(`Server in ascolto su http://localhost:${config.port}`);
   } catch (err) {
-    console.error('[FATAL] Failed to start server:', err);
+    app.log.fatal({ err }, 'Failed to start server');
     process.exit(1);
   }
 }

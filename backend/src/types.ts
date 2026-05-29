@@ -1,7 +1,7 @@
 export interface Repo {
   full_name: string;
   html_url: string;
-  description: string;
+  description: string | null;
   language: string | null;
   stargazers_count: number;
   forks_count: number;
@@ -28,15 +28,4 @@ export interface GithubApiResponse {
   ok: true;
   data: Repo[];
   hasNext: boolean;
-}
-
-export interface FetchAllResult {
-  ok: false;
-  status: number;
-  body: unknown;
-}
-
-export interface FetchAllSuccess {
-  ok: true;
-  data: Repo[];
 }

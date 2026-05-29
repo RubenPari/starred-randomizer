@@ -16,8 +16,8 @@ interface DbFavorite {
 export async function favoritesRoutes(app: FastifyInstance) {
   app.get('/api/favorites', async (request: FastifyRequest, reply: FastifyReply) => {
     await app.requireAuth(request, reply);
-    const userId = request.userId!;
-    const [rows] = await app.db.query<RowDataPacket[]>('SELECT id, repo_json, created_at FROM favorites WHERE user_id = ? ORDER BY created_at DESC', [userId]);
+
+    const [rows] = await app.db.query<RowDataPacket[]>('SELECT id, repo_json, created_at FROM favorites WHERE user_id = ? ORDER BY created_at DESC', [request.userId]);
     return (rows as DbFavorite[]).map((r) => ({
       id: r.id,
       repo: JSON.parse(r.repo_json) as Repo,
@@ -27,7 +27,7 @@ export async function favoritesRoutes(app: FastifyInstance) {
 
   app.post('/api/favorites', async (request: FastifyRequest, reply: FastifyReply) => {
     await app.requireAuth(request, reply);
-    const userId = request.userId!;
+
     const body = request.body as FavoriteBody;
     const repo = body.repo;
 
@@ -35,24 +35,28 @@ export async function favoritesRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Repository non valido' });
     }
 
-    const [existingRows] = await app.db.query<RowDataPacket[]>('SELECT 1 FROM favorites WHERE user_id = ? AND full_name = ?', [userId, repo.full_name]);
+    const [existingRows] = await app.db.query<RowDataPacket[]>('SELECT 1 FROM favorites WHERE user_id = ? AND full_name = ?', [request.userId, repo.full_name]);
     if (existingRows.length > 0) {
       return reply.status(409).send({ error: 'Già nei preferiti' });
     }
 
     const id = crypto.randomUUID();
-    await app.db.execute('INSERT INTO favorites (id, user_id, full_name, repo_json) VALUES (?, ?, ?, ?)', [id, userId, repo.full_name, JSON.stringify(repo)]);
+    await app.db.execute('INSERT INTO favorites (id, user_id, full_name, repo_json) VALUES (?, ?, ?, ?)', [id, request.userId, repo.full_name, JSON.stringify(repo)]);
 
     reply.status(201);
     return { id, repo };
   });
 
-  app.delete('/api/favorites/:fullName', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.delete('/api/favorites/*', async (request: FastifyRequest, reply: FastifyReply) => {
     await app.requireAuth(request, reply);
-    const userId = request.userId!;
-    const params = request.params as { fullName: string };
-    const { fullName } = params;
-    const [result] = await app.db.execute<ResultSetHeader>('DELETE FROM favorites WHERE user_id = ? AND full_name = ?', [userId, fullName]);
+
+    const params = request.params as Record<string, string>;
+    const fullName = decodeURIComponent(params['*']);
+    if (!fullName) {
+      return reply.status(400).send({ error: 'fullName richiesto' });
+    }
+
+    const [result] = await app.db.execute<ResultSetHeader>('DELETE FROM favorites WHERE user_id = ? AND full_name = ?', [request.userId, fullName]);
 
     if (result.affectedRows === 0) {
       return reply.status(404).send({ error: 'Preferito non trovato' });

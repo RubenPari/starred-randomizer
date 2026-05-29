@@ -17,14 +17,13 @@ export function calculateHiddenGemScore(repos: Repo[]): HiddenGemScore[] {
   const oneDay = 24 * 60 * 60 * 1000;
   const oneYear = 365 * oneDay;
 
-  const maxStars = Math.max(...repos.map((r) => r.stargazers_count), 1);
-  const maxForks = Math.max(...repos.map((r) => r.forks_count ?? 0), 1);
-  const maxWatchers = Math.max(...repos.map((r) => r.watchers_count ?? 0), 1);
+  const maxStars = repos.reduce((max, r) => Math.max(max, r.stargazers_count), 1);
+  const maxForks = repos.reduce((max, r) => Math.max(max, r.forks_count ?? 0), 1);
+  const maxWatchers = repos.reduce((max, r) => Math.max(max, r.watchers_count ?? 0), 1);
 
   return repos
     .map((repo) => {
       const updatedDaysAgo = (now - new Date(repo.updated_at).getTime()) / oneDay;
-      const createdDaysAgo = (now - new Date(repo.created_at).getTime()) / oneDay;
 
       const recencyScore = Math.max(0, 1 - updatedDaysAgo / oneYear);
       const popularityScore = 1 - repo.stargazers_count / maxStars;
