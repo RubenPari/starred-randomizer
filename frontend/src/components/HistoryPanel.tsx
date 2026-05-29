@@ -1,12 +1,7 @@
 import { IconClock, IconTrash, IconStar } from './Icons';
 import LanguageBadge from './LanguageBadge';
 import { formatStars, formatTime } from '../utils/format';
-import type { Repo } from '../types';
-
-interface HistoryEntry {
-  repo: Repo;
-  timestamp: number;
-}
+import type { HistoryEntry } from '../types';
 
 interface HistoryPanelProps {
   history: HistoryEntry[];

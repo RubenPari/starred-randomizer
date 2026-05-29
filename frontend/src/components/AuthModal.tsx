@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { IconX } from './Icons';
+import { handleApiError } from '../utils/format';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -30,8 +31,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, onRegister }: Auth
       setPassword('');
       onClose();
     } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { error?: string } } };
-      setError(axiosError.response?.data?.error || 'Errore imprevisto');
+      setError(handleApiError(err));
     } finally {
       setSubmitting(false);
     }

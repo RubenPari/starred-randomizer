@@ -1,7 +1,9 @@
 import { useState, useCallback } from 'react';
-import axios, { AxiosError } from 'axios';
-import type { Repo } from '../types';
+import axios from 'axios';
+import type { Repo, HistoryEntry } from '../types';
 import { handleApiError } from '../utils/format';
+
+const HISTORY_LIMIT = 10;
 
 interface UseRandomRepoReturn {
   randomRepo: Repo | null;
@@ -12,11 +14,6 @@ interface UseRandomRepoReturn {
   clearError: () => void;
   selectFromHistory: (entry: HistoryEntry) => void;
   clearHistory: () => void;
-}
-
-export interface HistoryEntry {
-  repo: Repo;
-  timestamp: number;
 }
 
 export function useRandomRepo(): UseRandomRepoReturn {
@@ -39,14 +36,9 @@ export function useRandomRepo(): UseRandomRepoReturn {
         params: { language: language || undefined, min_stars: minStars || undefined },
       });
       setRandomRepo(res.data);
-      setHistory((prev) => [{ repo: res.data, timestamp: Date.now() }, ...prev].slice(0, 10));
+      setHistory((prev) => [{ repo: res.data, timestamp: Date.now() }, ...prev].slice(0, HISTORY_LIMIT));
     } catch (err: unknown) {
-      const axiosError = err as AxiosError<{ error?: string }>;
-      if (axiosError.response?.data?.error) {
-        setError(axiosError.response.data.error);
-      } else {
-        setError(handleApiError(err));
-      }
+      setError(handleApiError(err));
     } finally {
       setLoading(false);
     }

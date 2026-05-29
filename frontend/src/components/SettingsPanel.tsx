@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { IconX } from './Icons';
+import { handleApiError } from '../utils/format';
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -24,8 +25,7 @@ export default function SettingsPanel({ isOpen, onClose, onSaveToken }: Settings
       setSuccess('Token GitHub salvato con successo');
       setToken('');
     } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { error?: string } } };
-      setError(axiosError.response?.data?.error || 'Errore durante il salvataggio del token');
+      setError(handleApiError(err));
     } finally {
       setSubmitting(false);
     }
