@@ -5,25 +5,33 @@ A full-stack TypeScript application that allows users to explore their GitHub st
 ## Features
 
 - Fetch all starred repositories for a GitHub user
-- Filter repositories by programming language
-- Filter repositories by minimum star count
+- Filter repositories by programming language and minimum star count
 - Randomly select a repository from the filtered results
-- Modern UI built with React and TypeScript
+- Search across starred repos by name, description, topic, or language
+- Hidden Gems: discover underrated repos with few stars but high potential
+- Favorites: save and manage your favorite repos (authenticated users: server-side, guests: localStorage)
+- Statistics dashboard with language distribution, monthly activity, and top topics
+- Timeline heatmap of repository creation dates
+- Dark/light theme toggle
+- Authentication with JWT (register, login, logout)
+- GitHub personal access token per user for higher rate limits
+- Modern UI built with React and TypeScript (Italian language)
 - Fast backend API with Fastify
 
 ## Tech Stack
 
 - **Backend**: Fastify + TypeScript
-- **Frontend**: React + TypeScript + Vite
-- **Styling**: Tailwind CSS
+- **Frontend**: React 19 + TypeScript + Vite 7
+- **Styling**: Tailwind CSS v4
 - **HTTP Client**: Axios
+- **Database**: MySQL 8 (via Docker Compose or local)
 
 ## Prerequisites
 
-- Node.js (v14 or higher)
-- npm or yarn
+- Node.js v20 or higher
+- npm
 - GitHub Personal Access Token
-- MySQL (or Docker for the provided Docker Compose setup)
+- MySQL 8 (or Docker for the provided Docker Compose setup)
 
 ## Setup
 
@@ -36,7 +44,13 @@ cd starred-randomizer
 
 ### 2. Environment Configuration
 
-Create a `.env` file in the project root:
+Copy the example env file and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your actual values:
 
 ```env
 GITHUB_TOKEN=your_github_personal_access_token
@@ -49,6 +63,7 @@ DB_USER=root
 DB_PASSWORD=your_mysql_password
 DB_NAME=starred_randomizer
 
+# Auth secrets (MUST be changed in production)
 JWT_SECRET=change-me-in-production
 COOKIE_SECRET=change-me-in-production
 ```
@@ -74,7 +89,12 @@ npm install
 The easiest way to run everything (MySQL + app) is via Docker Compose:
 
 ```bash
-docker-compose up --build
+# Set required environment variables
+export GITHUB_TOKEN=your_token
+export JWT_SECRET=your_jwt_secret
+export COOKIE_SECRET=your_cookie_secret
+
+docker compose up --build
 ```
 
 - Application: `http://localhost:8080`
@@ -82,13 +102,7 @@ docker-compose up --build
 
 MySQL data is persisted in a Docker volume (`mysql_data`).
 
-**Automatic database migration**: the first time the `db` container starts, Docker Compose automatically runs the SQL initialization script (`docker/mysql/init/01-schema.sql`) to create the database schema. If you run the app outside Docker, the backend also auto-creates missing tables on startup.
-
-To stop:
-
-```bash
-docker-compose down
-```
+The backend automatically creates missing tables on startup.
 
 ### Option B: Local Development
 
@@ -121,19 +135,28 @@ The frontend will run on `http://localhost:5173`
 ## Usage
 
 1. Open your browser and navigate to `http://localhost:5173`
-2. Enter a GitHub username
-3. Click "Carica Starred" to fetch all starred repositories
-4. Optionally set filters:
-   - Language: Filter by programming language (e.g., "JavaScript", "Python")
-   - Min stars: Filter by minimum star count
-5. Click "Estrai Random" to get a random repository from the filtered results
+2. Register or log in
+3. Enter a GitHub username
+4. Click "Carica Starred" to fetch all starred repositories
+5. Optionally set filters (language, min stars)
+6. Click "Estrai Random" to get a random repository
 
 ## API Endpoints
 
-- `GET /api/starred/:username` - Fetch starred repositories for a user
-  - Query params: `page`, `per_page`
-- `GET /api/random/:username` - Get a random starred repository
-  - Query params: `language`, `min_stars`
+- `GET /api/health` - Health check with cache stats
+- `POST /api/auth/register` - Create account
+- `POST /api/auth/login` - Login (sets httpOnly cookie)
+- `POST /api/auth/logout` - Logout
+- `GET /api/auth/me` - Get current user
+- `PUT /api/auth/me/token` - Update GitHub token
+- `GET /api/starred/:username` - Fetch all starred repos (paginated, cached)
+- `GET /api/random/:username?language=&min_stars=` - Get a random starred repo
+- `GET /api/hidden-gems/:username?limit=` - Get underrated repos (scored, <100 stars)
+- `GET /api/search/:username?q=&language=&min_stars=&limit=` - Search across starred repos
+- `GET /api/stats/:username` - Aggregated statistics
+- `GET /api/favorites` - User favorites (authenticated)
+- `POST /api/favorites` - Add favorite (authenticated)
+- `DELETE /api/favorites/*fullName` - Remove favorite (authenticated)
 
 ## Building for Production
 
@@ -142,6 +165,7 @@ The frontend will run on `http://localhost:5173`
 ```bash
 cd backend
 npm run build
+npm start
 ```
 
 ### Frontend
