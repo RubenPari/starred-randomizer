@@ -4,6 +4,8 @@ import LanguageBadge from './LanguageBadge';
 import type { Repo } from '../types';
 import { formatStars, timeAgo } from '../utils/format';
 
+const LANGUAGE_DISPLAY_LIMIT = 6;
+
 interface StatisticsPanelProps {
   repos: Repo[];
 }
@@ -54,10 +56,11 @@ export default function StatisticsPanel({ repos }: StatisticsPanelProps) {
         onClick={() => setIsVisible(!isVisible)}
         className="w-full px-5 py-4 flex items-center justify-between hover:bg-surface-2/50 transition-colors"
         aria-label={isVisible ? 'Nascondi statistiche' : 'Mostra statistiche'}
+        aria-expanded={isVisible}
       >
         <div className="flex items-center gap-2">
-          <IconChart className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-          <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+          <IconChart className="w-5 h-5 text-accent" />
+          <span className="font-semibold text-primary">
             Statistiche
           </span>
           <span className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium">
@@ -65,8 +68,7 @@ export default function StatisticsPanel({ repos }: StatisticsPanelProps) {
           </span>
         </div>
         <IconChevronDown
-          className={`w-5 h-5 transition-transform duration-200 ${isVisible ? 'rotate-180' : ''}`}
-          style={{ color: 'var(--text-muted)' }}
+          className={`w-5 h-5 text-muted transition-transform duration-200 ${isVisible ? 'rotate-180' : ''}`}
         />
       </button>
 
@@ -74,35 +76,35 @@ export default function StatisticsPanel({ repos }: StatisticsPanelProps) {
         <div className="px-5 pb-5 space-y-5 animate-fade-in">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-surface-2/50 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold" style={{ color: 'var(--color-star)' }}>
+              <div className="text-2xl font-bold text-star">
                 {formatStars(stats.totalStars)}
               </div>
-              <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+              <div className="text-xs mt-1 text-muted">
                 Stelle totali
               </div>
             </div>
             <div className="bg-surface-2/50 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold" style={{ color: 'var(--color-brand)' }}>
+              <div className="text-2xl font-bold text-brand">
                 {stats.uniqueLanguages}
               </div>
-              <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+              <div className="text-xs mt-1 text-muted">
                 Linguaggi
               </div>
             </div>
             <div className="bg-surface-2/50 rounded-lg p-3 text-center">
-              <div className="text-lg font-bold truncate" style={{ color: 'var(--text-primary)' }}>
+              <div className="text-lg font-bold truncate text-primary">
                 {stats.topRepo.full_name.split('/')[1]}
               </div>
-              <div className="text-xs mt-1 flex items-center justify-center gap-1" style={{ color: 'var(--color-star)' }}>
+              <div className="text-xs mt-1 flex items-center justify-center gap-1 text-star">
                 <IconStar className="w-3 h-3" />
                 {formatStars(stats.topRepo.stargazers_count)}
               </div>
             </div>
             <div className="bg-surface-2/50 rounded-lg p-3 text-center">
-              <div className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+              <div className="text-xs font-medium truncate text-primary">
                 {stats.mostRecentRepo.full_name.split('/')[1]}
               </div>
-              <div className="text-xs mt-1 flex items-center justify-center gap-1" style={{ color: 'var(--text-muted)' }}>
+              <div className="text-xs mt-1 flex items-center justify-center gap-1 text-muted">
                 <IconClock className="w-3 h-3" />
                 {timeAgo(stats.mostRecentRepo.updated_at)}
               </div>
@@ -110,25 +112,21 @@ export default function StatisticsPanel({ repos }: StatisticsPanelProps) {
           </div>
 
           <div>
-            <h4 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+            <h4 className="text-sm font-medium mb-3 flex items-center gap-2 text-secondary">
               <IconCode className="w-4 h-4" />
               Distribuzione linguaggi
             </h4>
             <div className="space-y-2">
-              {stats.languages.slice(0, 6).map(({ name, count, percentage }) => (
+              {stats.languages.slice(0, LANGUAGE_DISPLAY_LIMIT).map(({ name, count, percentage }) => (
                 <div key={name} className="flex items-center gap-3">
                   <LanguageBadge language={name} />
                   <div className="flex-1 h-2 bg-surface-3 rounded-full overflow-hidden">
                     <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${percentage}%`,
-                        background: 'var(--color-brand)',
-                        opacity: 0.7,
-                      }}
+                      className="h-full rounded-full transition-all duration-500 bg-brand/70"
+                      style={{ width: `${percentage}%` }}
                     />
                   </div>
-                  <span className="text-xs font-medium w-12 text-right" style={{ color: 'var(--text-muted)' }}>
+                  <span className="text-xs font-medium w-12 text-right text-muted">
                     {count}
                   </span>
                 </div>

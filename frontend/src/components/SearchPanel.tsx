@@ -8,9 +8,10 @@ interface SearchPanelProps {
   isLoading: boolean;
   results: Repo[];
   onSelect: (repo: Repo) => void;
+  error: string | null;
 }
 
-export default function SearchPanel({ onSearch, onClear, isLoading, results, onSelect }: SearchPanelProps) {
+export default function SearchPanel({ onSearch, onClear, isLoading, results, onSelect, error }: SearchPanelProps) {
   const [query, setQuery] = useState('');
 
   const handleSearch = useCallback(() => {
@@ -63,6 +64,7 @@ export default function SearchPanel({ onSearch, onClear, isLoading, results, onS
           {isLoading ? '...' : 'Cerca'}
         </button>
       </div>
+      {error && <p className="text-red-400 text-sm text-center mt-3">{error}</p>}
       {results.length > 0 && (
         <ul className="mt-4 space-y-2 max-h-64 overflow-y-auto">
           {results.map((repo) => (

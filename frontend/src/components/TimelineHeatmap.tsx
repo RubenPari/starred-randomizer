@@ -11,16 +11,25 @@ const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 function getColor(count: number, max: number): string {
   if (count === 0) return 'var(--color-surface-2)';
   const intensity = count / Math.max(max, 1);
-  if (intensity < 0.2) return 'rgba(124, 58, 237, 0.2)';
-  if (intensity < 0.4) return 'rgba(124, 58, 237, 0.35)';
-  if (intensity < 0.6) return 'rgba(124, 58, 237, 0.55)';
-  if (intensity < 0.8) return 'rgba(124, 58, 237, 0.75)';
-  return 'rgba(124, 58, 237, 1)';
+  if (intensity < 0.2) return 'color-mix(in srgb, var(--color-brand) 20%, transparent)';
+  if (intensity < 0.4) return 'color-mix(in srgb, var(--color-brand) 35%, transparent)';
+  if (intensity < 0.6) return 'color-mix(in srgb, var(--color-brand) 55%, transparent)';
+  if (intensity < 0.8) return 'color-mix(in srgb, var(--color-brand) 75%, transparent)';
+  return 'var(--color-brand)';
 }
+
+const LEGEND_LEVELS = [
+  'var(--color-surface-2)',
+  'color-mix(in srgb, var(--color-brand) 20%, transparent)',
+  'color-mix(in srgb, var(--color-brand) 35%, transparent)',
+  'color-mix(in srgb, var(--color-brand) 55%, transparent)',
+  'color-mix(in srgb, var(--color-brand) 75%, transparent)',
+  'var(--color-brand)',
+];
 
 export default function TimelineHeatmap({ activity, title = 'Heatmap stellings' }: TimelineHeatmapProps) {
   const heatmapData = useMemo(() => {
-    if (activity.length === 0) return { days: [], maxCount: 0 };
+    if (activity.length === 0) return { days: [], maxCount: 0, weeks: [] };
 
     const dataMap = new Map<string, number>();
     for (const item of activity) {
@@ -49,23 +58,24 @@ export default function TimelineHeatmap({ activity, title = 'Heatmap stellings' 
       });
     }
 
-    const maxCount = Math.max(...days.map((d) => d.count), 1);
-    return { days, maxCount };
+    const maxCount = days.reduce((max, d) => Math.max(max, d.count), 1);
+
+    const weeks: typeof days[] = [];
+    let currentWeek: typeof days = [];
+
+    for (const day of days) {
+      if (day.dayOfWeek === 0 && currentWeek.length > 0) {
+        weeks.push(currentWeek);
+        currentWeek = [];
+      }
+      currentWeek.push(day);
+    }
+    if (currentWeek.length > 0) weeks.push(currentWeek);
+
+    return { days, maxCount, weeks };
   }, [activity]);
 
   if (activity.length === 0) return null;
-
-  const weeks: typeof heatmapData.days[] = [];
-  let currentWeek: typeof heatmapData.days = [];
-
-  for (const day of heatmapData.days) {
-    if (day.dayOfWeek === 0 && currentWeek.length > 0) {
-      weeks.push(currentWeek);
-      currentWeek = [];
-    }
-    currentWeek.push(day);
-  }
-  if (currentWeek.length > 0) weeks.push(currentWeek);
 
   return (
     <div className="bg-surface/80 backdrop-blur rounded-xl p-5 border border-surface-3/50 shadow-lg animate-fade-in">
@@ -81,7 +91,7 @@ export default function TimelineHeatmap({ activity, title = 'Heatmap stellings' 
             ))}
           </div>
           <div className="flex gap-1">
-            {weeks.map((week, wi) => (
+            {heatmapData.weeks.map((week, wi) => (
               <div key={wi} className="flex flex-col gap-1">
                 {Array.from({ length: 7 }).map((_, di) => {
                   const day = week[di];
@@ -91,7 +101,7 @@ export default function TimelineHeatmap({ activity, title = 'Heatmap stellings' 
                       key={di}
                       className="w-3 h-3 rounded-sm hover:ring-1 hover:ring-brand transition-all cursor-pointer relative group"
                       style={{ backgroundColor: getColor(day.count, heatmapData.maxCount) }}
-                      title={`${day.date}: ${day.count} repo`}
+                      aria-label={`${day.date}: ${day.count} repo`}
                     >
                       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-surface rounded text-xs text-primary whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
                         {day.date}: {day.count} repo
@@ -109,12 +119,9 @@ export default function TimelineHeatmap({ activity, title = 'Heatmap stellings' 
         <span>Da un anno fa</span>
         <div className="flex items-center gap-1">
           <span>Meno</span>
-          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'var(--color-surface-2)' }} />
-          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(124, 58, 237, 0.2)' }} />
-          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(124, 58, 237, 0.35)' }} />
-          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(124, 58, 237, 0.55)' }} />
-          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(124, 58, 237, 0.75)' }} />
-          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(124, 58, 237, 1)' }} />
+          {LEGEND_LEVELS.map((color, i) => (
+            <div key={i} className="w-3 h-3 rounded-sm" style={{ backgroundColor: color }} />
+          ))}
           <span>Più</span>
         </div>
         <span>Recente</span>

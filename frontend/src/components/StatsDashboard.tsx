@@ -80,7 +80,7 @@ export default function StatsDashboard({ stats, loading, error, onFetch }: Stats
             <h3 className="text-sm font-medium text-secondary mb-2">Attività mensile (ultimi 12 mesi)</h3>
             <div className="flex items-end gap-1 h-24">
               {stats.monthlyActivity.slice(-12).map((month) => {
-                const maxCount = Math.max(...stats.monthlyActivity.slice(-12).map((m) => m.count), 1);
+                const maxCount = stats.monthlyActivity.slice(-12).reduce((max, m) => Math.max(max, m.count), 1);
                 const height = (month.count / maxCount) * 100;
                 return (
                   <div

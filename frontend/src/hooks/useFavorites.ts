@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useContext } from 'react';
+import { useState, useCallback, useEffect, useContext, useRef } from 'react';
 import axios from 'axios';
 import { AuthContext } from '../contexts/AuthContext';
 import type { Repo } from '../types';
@@ -14,16 +14,15 @@ interface FavoriteEntry {
 export function useFavorites() {
   const { user } = useContext(AuthContext);
   const [favorites, setFavorites] = useState<Repo[]>(() => {
-    if (!user) {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        return stored ? JSON.parse(stored) : [];
-      } catch {
-        return [];
-      }
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
     }
-    return [];
   });
+  const favoritesRef = useRef(favorites);
+  favoritesRef.current = favorites;
 
   const loadFavorites = useCallback(async () => {
     if (!user) {
@@ -50,20 +49,17 @@ export function useFavorites() {
   }, [favorites, user]);
 
   const addFavorite = useCallback(async (repo: Repo) => {
-    if (favorites.some((r) => r.full_name === repo.full_name)) return;
+    if (favoritesRef.current.some((r) => r.full_name === repo.full_name)) return;
 
     if (user) {
       try {
         await axios.post('/api/favorites', { repo });
-        setFavorites((prev) => [...prev, repo]);
       } catch {
         // fallback to local
-        setFavorites((prev) => [...prev, repo]);
       }
-    } else {
-      setFavorites((prev) => [...prev, repo]);
     }
-  }, [user, favorites]);
+    setFavorites((prev) => [...prev, repo]);
+  }, [user]);
 
   const removeFavorite = useCallback(async (fullName: string) => {
     if (user) {
@@ -83,11 +79,12 @@ export function useFavorites() {
 
   const clearFavorites = useCallback(async () => {
     if (user) {
-      const promises = favorites.map((r) => axios.delete(`/api/favorites/${encodeURIComponent(r.full_name)}`));
+      const currentFavorites = favoritesRef.current;
+      const promises = currentFavorites.map((r) => axios.delete(`/api/favorites/${encodeURIComponent(r.full_name)}`));
       await Promise.allSettled(promises);
     }
     setFavorites([]);
-  }, [user, favorites]);
+  }, [user]);
 
-  return { favorites, addFavorite, removeFavorite, isFavorite, clearFavorites, refreshFavorites: loadFavorites };
+  return { favorites, addFavorite, removeFavorite, isFavorite, clearFavorites };
 }
