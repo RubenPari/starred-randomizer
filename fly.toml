@@ -2,7 +2,7 @@ app = 'starred-randomizer'
 primary_region = 'cdg'
 
 [build]
-  dockerfile = 'Dockerfile'
+  builder = 'nixpacks'
 
 [env]
   NODE_ENV = 'production'

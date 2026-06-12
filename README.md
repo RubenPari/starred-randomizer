@@ -24,14 +24,14 @@ A full-stack TypeScript application that allows users to explore their GitHub st
 - **Frontend**: React 19 + TypeScript + Vite 7
 - **Styling**: Tailwind CSS v4
 - **HTTP Client**: Axios
-- **Database**: MySQL 8 (via Docker Compose or local)
+- **Database**: MySQL 8
 
 ## Prerequisites
 
 - Node.js v20 or higher
 - npm
 - GitHub Personal Access Token
-- MySQL 8 (or Docker for the provided Docker Compose setup)
+- MySQL 8
 
 ## Setup
 
@@ -84,27 +84,7 @@ npm install
 
 ## Running the Application
 
-### Option A: Docker Compose (recommended)
-
-The easiest way to run everything (MySQL + app) is via Docker Compose:
-
-```bash
-# Set required environment variables
-export GITHUB_TOKEN=your_token
-export JWT_SECRET=your_jwt_secret
-export COOKIE_SECRET=your_cookie_secret
-
-docker compose up --build
-```
-
-- Application: `http://localhost:8080`
-- MySQL: exposed on `localhost:3306`
-
-MySQL data is persisted in a Docker volume (`mysql_data`).
-
-The backend automatically creates missing tables on startup.
-
-### Option B: Local Development
+### Local Development
 
 #### Start MySQL
 
