@@ -9,11 +9,14 @@ interface SearchQuery {
   language?: string;
   min_stars?: string;
   limit?: string;
+  topic?: string;
+  include_archived?: string;
+  updated_after?: string;
 }
 
 export async function searchRoutes(app: FastifyInstance) {
   app.get('/api/search/:username', async (request: FastifyRequest<{ Params: { username: string }; Querystring: SearchQuery }>, reply: FastifyReply) => {
-    const { q, language, min_stars, limit } = request.query;
+    const { q, language, min_stars, limit, topic, include_archived, updated_after } = request.query;
 
     if (!q || q.trim().length === 0) {
       return reply.status(400).send({ error: 'Parametro q richiesto' });
@@ -33,9 +36,14 @@ export async function searchRoutes(app: FastifyInstance) {
       repo.topics.some((t) => t.toLowerCase().includes(query)) ||
       (repo.language?.toLowerCase() ?? '').includes(query);
 
+    const includeArchived = include_archived !== 'false' && include_archived !== '0';
+
     const baseFiltered = filterRepos(result.data, {
       language,
       min_stars: safeParseInt(min_stars, 0) || undefined,
+      topic,
+      include_archived: includeArchived,
+      updated_after,
     });
 
     const filtered = baseFiltered.filter(matchesQuery);
