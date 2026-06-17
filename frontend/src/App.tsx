@@ -19,7 +19,7 @@ import { useStarredRepos } from './hooks/useStarredRepos';
 import { useRandomRepo } from './hooks/useRandomRepo';
 import { useFavorites } from './hooks/useFavorites';
 import { useTheme } from './hooks/useTheme';
-import type { Repo, HiddenGemScore, RepoStats } from './types';
+import type { Repo, HiddenGemScore, RepoStats, RepoFilters } from './types';
 import { IconZap, IconGitHub } from './components/Icons';
 import { handleApiError } from './utils/format';
 
@@ -29,7 +29,7 @@ const HIDDEN_GEMS_LIMIT = 10;
 function AppContent() {
   const { user, login, register, logout, updateToken, loading: authLoading } = useContext(AuthContext);
   const [username, setUsername] = useState(DEFAULT_USERNAME);
-  const [filters, setFilters] = useState<{ language: string; min_stars: number }>({ language: '', min_stars: 0 });
+  const [filters, setFilters] = useState<RepoFilters>({ language: '', min_stars: 0, topic: '', include_archived: true, updated_after: '' });
   const [shufflePhase, setShufflePhase] = useState(false);
   const [searchResults, setSearchResults] = useState<Repo[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -62,12 +62,22 @@ function AppContent() {
     return repos.filter((r) => {
       if (filters.language && r.language?.toLowerCase() !== filters.language.toLowerCase()) return false;
       if (filters.min_stars > 0 && r.stargazers_count < filters.min_stars) return false;
+      if (filters.topic && !r.topics.some((t) => t.toLowerCase() === filters.topic.toLowerCase())) return false;
+      if (!filters.include_archived && r.archived) return false;
+      if (filters.updated_after) {
+        const d = new Date(filters.updated_after);
+        if (!Number.isNaN(d.getTime()) && new Date(r.updated_at) < d) return false;
+      }
       return true;
     });
   }, [repos, filters]);
 
   const languages = useMemo(
     () => Array.from(new Set(repos.map((r) => r.language).filter((l): l is string => Boolean(l)))).sort(),
+    [repos]
+  );
+  const topics = useMemo(
+    () => Array.from(new Set(repos.flatMap((r) => r.topics))).sort(),
     [repos]
   );
 
@@ -82,7 +92,7 @@ function AppContent() {
 
   const handleRandom = useCallback(async () => {
     setShufflePhase(true);
-    await getRandom(username, filters.language, filters.min_stars, filteredRepos.length);
+    await getRandom(username, filters.language, filters.min_stars, filters.topic, filters.include_archived, filters.updated_after, filteredRepos.length);
     setShufflePhase(false);
 
     setTimeout(() => {
@@ -91,7 +101,7 @@ function AppContent() {
   }, [username, filters, filteredRepos.length, getRandom]);
 
   const resetFilters = useCallback(() => {
-    setFilters({ language: '', min_stars: 0 });
+    setFilters({ language: '', min_stars: 0, topic: '', include_archived: true, updated_after: '' });
   }, []);
 
   const handleSelectFromHistory = useCallback((entry: { repo: Repo; timestamp: number }) => {
@@ -107,7 +117,11 @@ function AppContent() {
     setSearchLoading(true);
     setSearchError(null);
     try {
-      const res = await axios.get<Repo[]>(`/api/search/${username}`, { params: { q: query } });
+      const params: Record<string, string | boolean | number> = { q: query };
+      if (filters.topic) params.topic = filters.topic;
+      params.include_archived = filters.include_archived;
+      if (filters.updated_after) params.updated_after = filters.updated_after;
+      const res = await axios.get<Repo[]>(`/api/search/${username}`, { params });
       setSearchResults(res.data);
     } catch (err) {
       setSearchError(handleApiError(err));
@@ -115,7 +129,7 @@ function AppContent() {
     } finally {
       setSearchLoading(false);
     }
-  }, [username]);
+  }, [username, filters]);
 
   const handleClearSearch = useCallback(() => {
     setSearchResults([]);
@@ -243,6 +257,7 @@ function AppContent() {
               repos={repos}
               filteredCount={filteredRepos.length}
               languages={languages}
+              topics={topics}
               filters={filters}
               maxStars={maxStars}
               loading={loading}
@@ -286,6 +301,9 @@ function AppContent() {
 
         {activeTab === 'search' && (
           <SearchPanel
+            filters={filters}
+            topics={topics}
+            onFilterChange={setFilters}
             onSearch={handleSearch}
             onClear={handleClearSearch}
             isLoading={searchLoading}

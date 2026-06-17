@@ -59,3 +59,11 @@ export interface RepoStats {
   topTopics: TopicStat[];
   archivedCount: number;
 }
+
+export interface RepoFilters {
+  language: string;
+  min_stars: number;
+  topic: string;
+  include_archived: boolean;
+  updated_after: string;
+}

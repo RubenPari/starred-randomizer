@@ -1,8 +1,11 @@
 import { useState, useCallback } from 'react';
 import { IconSearch, IconX } from './Icons';
-import type { Repo } from '../types';
+import type { Repo, RepoFilters } from '../types';
 
 interface SearchPanelProps {
+  filters: RepoFilters;
+  topics: string[];
+  onFilterChange: (filters: RepoFilters) => void;
   onSearch: (query: string) => void;
   onClear: () => void;
   isLoading: boolean;
@@ -11,7 +14,7 @@ interface SearchPanelProps {
   error: string | null;
 }
 
-export default function SearchPanel({ onSearch, onClear, isLoading, results, onSelect, error }: SearchPanelProps) {
+export default function SearchPanel({ filters, topics, onFilterChange, onSearch, onClear, isLoading, results, onSelect, error }: SearchPanelProps) {
   const [query, setQuery] = useState('');
 
   const handleSearch = useCallback(() => {
@@ -63,6 +66,44 @@ export default function SearchPanel({ onSearch, onClear, isLoading, results, onS
         >
           {isLoading ? '...' : 'Cerca'}
         </button>
+      </div>
+      <div className="flex flex-col sm:flex-row gap-3 mt-3">
+        <div className="flex-1 relative">
+          <select
+            value={filters.topic || ''}
+            onChange={(e) => onFilterChange({ ...filters, topic: e.target.value })}
+            disabled={topics.length === 0}
+            className="w-full bg-surface-2 border border-surface-3 rounded-lg px-4 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-brand/50 focus:border-brand transition text-sm min-h-[44px] appearance-none cursor-pointer text-primary disabled:opacity-60 disabled:cursor-not-allowed"
+            aria-label="Filtra per topic"
+          >
+            <option value="">Tutti i topic</option>
+            {topics.map((topic) => (
+              <option key={topic} value={topic}>
+                {topic}
+              </option>
+            ))}
+          </select>
+        </div>
+        <label className="flex-1 sm:flex-initial flex items-center gap-2 min-h-[44px] px-3 bg-surface-2 border border-surface-3 rounded-lg cursor-pointer text-sm text-primary">
+          <input
+            type="checkbox"
+            checked={filters.include_archived}
+            onChange={(e) => onFilterChange({ ...filters, include_archived: e.target.checked })}
+            className="w-4 h-4 accent-brand cursor-pointer"
+            aria-label="Includi repository archiviati"
+          />
+          Includi archiviati
+        </label>
+        <div className="flex-1 sm:flex-initial sm:w-48">
+          <label className="text-xs font-medium text-secondary block mb-1">Aggiornato dopo</label>
+          <input
+            type="date"
+            value={filters.updated_after}
+            onChange={(e) => onFilterChange({ ...filters, updated_after: e.target.value })}
+            className="w-full bg-surface-2 border border-surface-3 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/50 focus:border-brand transition text-sm min-h-[44px] text-primary"
+            aria-label="Aggiornato dopo"
+          />
+        </div>
       </div>
       {error && <p className="text-red-400 text-sm text-center mt-3">{error}</p>}
       {results.length > 0 && (
