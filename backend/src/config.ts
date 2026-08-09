@@ -54,7 +54,7 @@ export const config = {
   requestTimeoutMs: 15_000,
   cacheTtlMs: 5 * 60 * 1000,
   dbHost: process.env.DB_HOST || 'localhost',
-  dbPort: parseIntEnv(process.env.DB_PORT, 3306),
+  dbPort: parseIntEnv(process.env.DB_PORT, 5432),
   dbUser: process.env.DB_USER || 'root',
   dbPassword: process.env.DB_PASSWORD || '',
   dbName: process.env.DB_NAME || 'starred_randomizer',

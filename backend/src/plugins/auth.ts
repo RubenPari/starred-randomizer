@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
 import argon2 from 'argon2';
 import crypto from 'crypto';
-import { createPool, type Pool, type RowDataPacket } from 'mysql2/promise';
+import { Pool } from 'pg';
 import { config } from '../config';
 
 declare module 'fastify' {
@@ -32,7 +32,7 @@ interface DbUserPublic {
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function initSchema(pool: Pool) {
-  await pool.execute(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id VARCHAR(36) PRIMARY KEY,
       email VARCHAR(255) UNIQUE NOT NULL,
@@ -42,7 +42,7 @@ async function initSchema(pool: Pool) {
     )
   `);
 
-  await pool.execute(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS favorites (
       id VARCHAR(36) PRIMARY KEY,
       user_id VARCHAR(36) NOT NULL,
@@ -54,34 +54,27 @@ async function initSchema(pool: Pool) {
     )
   `);
 
-  try {
-    await pool.execute(`
-      CREATE INDEX idx_favorites_user_id ON favorites(user_id)
-    `);
-  } catch (err: unknown) {
-    const e = err as { code?: string; message?: string };
-    if (e.code !== 'ER_DUP_KEYNAME' && !e.message?.includes('Duplicate key name')) {
-      throw err;
-    }
-  }
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON favorites(user_id)
+  `);
 }
 
 async function findUserByEmail(pool: Pool, email: string): Promise<DbUser | null> {
-  const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM users WHERE email = ?', [email]);
+  const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
   return (rows[0] as DbUser | undefined) ?? null;
 }
 
 async function findUserPublicById(pool: Pool, id: string): Promise<DbUserPublic | null> {
-  const [rows] = await pool.query<RowDataPacket[]>('SELECT id, email, created_at FROM users WHERE id = ?', [id]);
+  const { rows } = await pool.query('SELECT id, email, created_at FROM users WHERE id = $1', [id]);
   return (rows[0] as DbUserPublic | undefined) ?? null;
 }
 
 async function createUser(pool: Pool, id: string, email: string, passwordHash: string): Promise<void> {
-  await pool.execute('INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)', [id, email, passwordHash]);
+  await pool.query('INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)', [id, email, passwordHash]);
 }
 
 async function updateUserToken(pool: Pool, userId: string, token: string | null): Promise<void> {
-  await pool.execute('UPDATE users SET github_token = ? WHERE id = ?', [token, userId]);
+  await pool.query('UPDATE users SET github_token = $1 WHERE id = $2', [token, userId]);
 }
 
 class UnauthorizedError extends Error {
@@ -99,14 +92,13 @@ const cookieOptions = {
 };
 
 async function dbAndAuthPlugin(app: FastifyInstance) {
-  const pool = createPool({
+  const pool = new Pool({
     host: config.dbHost,
     port: config.dbPort,
     user: config.dbUser,
     password: config.dbPassword,
     database: config.dbName,
-    waitForConnections: true,
-    connectionLimit: 10,
+    max: 10,
     ssl: config.dbSsl ? { rejectUnauthorized: false } : undefined,
   });
 
