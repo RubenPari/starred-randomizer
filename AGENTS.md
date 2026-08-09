@@ -31,7 +31,7 @@ npm run preview  # vite preview (prod build)
 - `CORS_ORIGIN` optional, defaults to `http://localhost:5173`
 - `JWT_SECRET` required in production (fails fast if using default)
 - `COOKIE_SECRET` required in production (fails fast if using default)
-- MySQL 8 database required — tables auto-created on first run
+- PostgreSQL 15+ database required — tables auto-created on first run
 - See `.env.example` for all available variables
 
 ## Key Files
@@ -55,7 +55,7 @@ npm run preview  # vite preview (prod build)
 | `backend/src/routes/search.ts` | `/api/search/:username` route handler |
 | `backend/src/routes/stats.ts` | `/api/stats/:username` route handler |
 | `backend/src/routes/favorites.ts` | `/api/favorites` CRUD (protected) |
-| `backend/src/plugins/auth.ts` | Auth plugin: MySQL init, JWT, cookies, /api/auth/* routes |
+| `backend/src/plugins/auth.ts` | Auth plugin: PostgreSQL init, JWT, cookies, /api/auth/* routes |
 
 ### Frontend
 | Path | Role |
@@ -94,7 +94,7 @@ npm run preview  # vite preview (prod build)
 - Request timeout (15s default)
 - CORS restricted to `CORS_ORIGIN` env var (default: `http://localhost:5173`) with credentials
 - Graceful shutdown on SIGTERM/SIGINT
-- MySQL database for users and favorites (tables auto-created on startup)
+- PostgreSQL database for users and favorites (tables auto-created on startup)
 - JWT authentication via httpOnly cookies (throws UnauthorizedError on missing auth)
 - argon2 password hashing
 - Fastify logger used throughout (no console.log)

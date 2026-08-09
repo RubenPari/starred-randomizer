@@ -8,7 +8,7 @@ The application is a full-stack project composed of:
 
 - `frontend/` — React + Vite + TypeScript build
 - `backend/` — Fastify + TypeScript API
-- MySQL 8 — required for authentication and favorites persistence
+- PostgreSQL — required for authentication and favorites persistence
 
 The deployment uses a single Dockerfile component. The backend serves both the API and the compiled SPA from `frontend/dist`, so only one service is needed.
 
@@ -44,15 +44,16 @@ The backend reads `PORT` (App Platform injects `8080` for Docker components) and
 - Creates one service component (`backend`) built from the Dockerfile.
 - Region: `fra`, instance `apps-s-1vcpu-0.5gb` (Basic $5/mo), `instance_count: 1`.
 - Health check on `GET /api/health`.
-- Sets `NODE_ENV=production` (required for `secure` cookies and secret validation) and `DB_SSL=true` (required for the TLS connection to a Managed MySQL public endpoint).
+- Sets `NODE_ENV=production` (required for `secure` cookies and secret validation) and `DB_SSL=true` (required for the TLS connection to a Managed PostgreSQL public endpoint).
 - Declares the secret variables; their values are filled in after creation.
 
 > **Security:** never commit real secrets. The `SECRET` variables in the spec are created empty and must be set in the dashboard (or via `doctl apps update`) before the first deploy.
 
 ## Prerequisites
 
-- A [Managed MySQL](https://www.digitalocean.com/products/managed-databases-mysql) database cluster with the **public endpoint enabled** (the app connects from App Platform, not from your local network).
+- A [Managed PostgreSQL](https://www.digitalocean.com/products/managed-databases-postgresql) database cluster with the **public endpoint enabled** (the app connects from App Platform, not from your local network).
 - The database firewall must accept connections from the App Platform outbound ranges (or from anywhere — not recommended — for quick tests). If the cluster only accepts trusted sources, add the App Platform egress ranges.
+- The database user needs `CREATE` on the `public` schema (PG 15+ restricts it by default) so the app can auto-create its tables.
 - A GitHub Personal Access Token (`GITHUB_TOKEN`) for the API.
 - Strong random values for `JWT_SECRET` and `COOKIE_SECRET` (the backend refuses to start in production with the dev defaults).
 
@@ -65,12 +66,12 @@ Set the following variables on the app (dashboard → App Settings → Environme
 | `GITHUB_TOKEN` | Yes | GitHub Personal Access Token used to call the GitHub API. |
 | `JWT_SECRET` | Yes | Secret key for signing JWT tokens. Use a strong random string. |
 | `COOKIE_SECRET` | Yes | Secret key for signing cookies. Use a strong random string. |
-| `DB_HOST` | Yes | Public host of the Managed MySQL cluster, e.g. `db-mysql-fra1-xxxxx-do-user-xxxxx.db.ondigitalocean.com`. |
-| `DB_PORT` | Yes | Public port of the Managed MySQL cluster, usually `25060` for Managed MySQL (not `3306`). |
-| `DB_USER` | Yes | Database user, e.g. `doadmin`. |
+| `DB_HOST` | Yes | Public host of the Managed PostgreSQL cluster, e.g. `db-postgresql-fra1-xxxxx-do-user-xxxxx.db.ondigitalocean.com`. |
+| `DB_PORT` | Yes | Public port of the Managed PostgreSQL cluster, usually `25060` (not `5432`). |
+| `DB_USER` | Yes | Database user, e.g. `doadmin` or a dedicated role. |
 | `DB_PASSWORD` | Yes | Database password. |
 | `DB_NAME` | Yes | Database name, e.g. `defaultdb` or the one you created. |
-| `DB_SSL` | No | `true` to enable TLS on the MySQL connection (required for the public endpoint; already set in the spec). |
+| `DB_SSL` | No | `true` to enable TLS on the PostgreSQL connection (required for the public endpoint; already set in the spec). |
 | `NODE_ENV` | No | Set to `production` (already set in the spec). |
 | `CORS_ORIGIN` | No | Not needed in production: the SPA and API share the same origin. Only set it if you use a separate frontend domain. |
 | `HOST` | No | Bind host, defaults to `0.0.0.0`. |
@@ -130,10 +131,11 @@ You can also paste the values directly in the dashboard; `doctl apps update` ove
 - Verify `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` are set and that the public endpoint is enabled on the cluster.
 - Verify the database firewall accepts the App Platform outbound ranges.
 
-### MySQL TLS / connection errors
+### PostgreSQL TLS / connection errors
 
-- The Managed MySQL public endpoint requires TLS: keep `DB_SSL=true`.
-- Confirm the port: Managed MySQL public connections use `25060`, not `3306`.
+- The Managed PostgreSQL public endpoint requires TLS: keep `DB_SSL=true`.
+- Confirm the port: Managed PostgreSQL public connections use `25060`, not `5432`.
+- The app user needs `CREATE` on the `public` schema of the target database (PG 15+ restricts it by default); otherwise `initSchema` fails at boot.
 - As an escape hatch only, `DB_SSL=false` disables TLS (works only if the cluster allows non-TLS connections).
 
 ### Container build fails on `npm ci --omit=dev` (argon2)
@@ -165,7 +167,7 @@ cd backend && npm run typecheck
 # Build the image locally
 docker build -t starred-randomizer .
 
-# Smoke test locally against a local MySQL
+# Smoke test locally against a local PostgreSQL
 docker run --rm --env-file <env> -p 8080:8080 starred-randomizer
 ```
 

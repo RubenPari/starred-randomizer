@@ -24,14 +24,14 @@ A full-stack TypeScript application that allows users to explore their GitHub st
 - **Frontend**: React 19 + TypeScript + Vite 7
 - **Styling**: Tailwind CSS v4
 - **HTTP Client**: Axios
-- **Database**: MySQL 8
+- **Database**: PostgreSQL
 
 ## Prerequisites
 
 - Node.js v20 or higher
 - npm
 - GitHub Personal Access Token
-- MySQL 8
+- PostgreSQL 15+
 
 ## Setup
 
@@ -56,11 +56,11 @@ Edit `.env` with your actual values:
 GITHUB_TOKEN=your_github_personal_access_token
 PORT=3001
 
-# MySQL configuration
+# PostgreSQL configuration
 DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=your_mysql_password
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_postgres_password
 DB_NAME=starred_randomizer
 
 # Auth secrets (MUST be changed in production)
@@ -86,12 +86,12 @@ npm install
 
 ### Local Development
 
-#### Start MySQL
+#### Start PostgreSQL
 
-Ensure MySQL is running locally and the database `starred_randomizer` exists:
+Ensure PostgreSQL is running locally and the database `starred_randomizer` exists:
 
 ```sql
-CREATE DATABASE IF NOT EXISTS starred_randomizer CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE starred_randomizer;
 ```
 
 #### Start the Backend Server
