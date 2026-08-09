@@ -91,6 +91,13 @@ class UnauthorizedError extends Error {
   }
 }
 
+const cookieOptions = {
+  path: '/',
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict' as const,
+};
+
 async function dbAndAuthPlugin(app: FastifyInstance) {
   const pool = createPool({
     host: config.dbHost,
@@ -100,6 +107,7 @@ async function dbAndAuthPlugin(app: FastifyInstance) {
     database: config.dbName,
     waitForConnections: true,
     connectionLimit: 10,
+    ssl: config.dbSsl ? { rejectUnauthorized: false } : undefined,
   });
 
   await initSchema(pool);
@@ -173,7 +181,7 @@ async function dbAndAuthPlugin(app: FastifyInstance) {
     await createUser(pool, id, email.toLowerCase(), passwordHash);
 
     const token = app.jwt.sign({ userId: id }, { expiresIn: config.jwtExpiry });
-    reply.setCookie('token', token, { path: '/' });
+    reply.setCookie('token', token, cookieOptions);
 
     return { id, email: email.toLowerCase() };
   });
@@ -197,13 +205,13 @@ async function dbAndAuthPlugin(app: FastifyInstance) {
     }
 
     const token = app.jwt.sign({ userId: user.id }, { expiresIn: config.jwtExpiry });
-    reply.setCookie('token', token, { path: '/' });
+    reply.setCookie('token', token, cookieOptions);
 
     return { id: user.id, email: user.email };
   });
 
   app.post('/api/auth/logout', async (_request: FastifyRequest, reply: FastifyReply) => {
-    reply.clearCookie('token', { path: '/' });
+    reply.clearCookie('token', cookieOptions);
     return { message: 'Logout effettuato' };
   });
 
@@ -214,7 +222,7 @@ async function dbAndAuthPlugin(app: FastifyInstance) {
 
     const user = await findUserPublicById(pool, request.userId);
     if (!user) {
-      reply.clearCookie('token', { path: '/' });
+      reply.clearCookie('token', cookieOptions);
       return reply.status(401).send({ error: 'Utente non trovato' });
     }
 

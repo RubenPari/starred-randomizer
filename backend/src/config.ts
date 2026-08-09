@@ -58,6 +58,7 @@ export const config = {
   dbUser: process.env.DB_USER || 'root',
   dbPassword: process.env.DB_PASSWORD || '',
   dbName: process.env.DB_NAME || 'starred_randomizer',
+  dbSsl: process.env.DB_SSL === 'true',
   jwtSecret: JWT_SECRET,
   cookieSecret: COOKIE_SECRET,
   jwtExpiry: process.env.JWT_EXPIRY || '7d',

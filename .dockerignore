@@ -1,0 +1,11 @@
+.git
+.gitignore
+.kilo
+.env*
+docker/
+*.md
+**/node_modules
+**/dist
+**/coverage
+**/.vscode
+**/npm-debug.log
