@@ -99,21 +99,13 @@ doctl apps spec validate do-app-spec.yaml
 doctl apps create --spec do-app-spec.yaml
 ```
 
-Then set the secret values (from the database **Connection Details** page):
+The first deploy starts automatically. Then set the secret values (from the database **Connection Details** page) in the dashboard under **App Settings → Environment Variables**, or by submitting a spec that includes the values (they are encrypted on submission):
 
 ```bash
-doctl apps update <app-id> --spec do-app-spec.yaml \
-  --set-env GITHUB_TOKEN=<token> \
-  --set-env JWT_SECRET=<random> \
-  --set-env COOKIE_SECRET=<random> \
-  --set-env DB_HOST=<public-host> \
-  --set-env DB_PORT=25060 \
-  --set-env DB_USER=<user> \
-  --set-env DB_PASSWORD=<password> \
-  --set-env DB_NAME=<dbname>
+doctl apps update <app-id> --spec app-spec-with-values.yaml
 ```
 
-You can also paste the values directly in the dashboard; `doctl apps update` overwrites the whole spec, so the two approaches should not be mixed carelessly.
+Use `doctl apps spec get <app-id>` to read the current spec; SECRET variables appear as encrypted `EV[...]` placeholders that can be reused verbatim on subsequent updates. App updates apply the whole spec, so prefer editing the output of `doctl apps spec get` over mixing dashboard and CLI changes.
 
 ## Post-deploy checks
 
@@ -153,7 +145,15 @@ You can also paste the values directly in the dashboard; `doctl apps update` ove
 
 ## Updating the deployment
 
-Push any change to the `master` branch. App Platform rebuilds the Dockerfile and redeploys automatically. Tables are auto-created at boot, so no migration step is required.
+The component uses a git clone-URL source (`git`), which does not support push triggers. After pushing changes to `master`, trigger a new deployment with:
+
+```bash
+doctl apps create-deployment <app-id>
+```
+
+or click **Deploy** in the App Platform dashboard. The Dockerfile is rebuilt from the latest `master`; tables are auto-created at boot, so no migration step is required.
+
+> To enable automatic deploys on push, connect your GitHub account in the App Platform dashboard (App Platform → GitHub) and switch the component source to the `github` type with `repo: RubenPari/starred-randomizer`, `branch: master`, and `deploy_on_push: true`.
 
 ## Useful commands
 
