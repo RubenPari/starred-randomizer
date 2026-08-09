@@ -6,6 +6,8 @@ import SettingsPanel from './components/SettingsPanel';
 import { SkeletonCard } from './components/SkeletonCard';
 import StatisticsPanel from './components/StatisticsPanel';
 import Header from './components/Header';
+import Sidebar from './components/Sidebar';
+import type { SidebarTab } from './components/Sidebar';
 import FilterPanel from './components/FilterPanel';
 import ResultCard from './components/ResultCard';
 import HistoryPanel from './components/HistoryPanel';
@@ -42,6 +44,7 @@ function AppContent() {
   const [statsError, setStatsError] = useState<string | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -174,12 +177,12 @@ function AppContent() {
     }
   }, [username]);
 
-  const tabs = [
-    { id: 'randomizer' as const, label: 'Randomizer' },
-    { id: 'search' as const, label: 'Cerca' },
-    { id: 'gems' as const, label: 'Hidden Gems' },
-    { id: 'stats' as const, label: 'Statistiche' },
-    { id: 'favorites' as const, label: `Preferiti (${favorites.length})` },
+  const tabs: SidebarTab[] = [
+    { id: 'randomizer', label: 'Randomizer', icon: 'randomizer' },
+    { id: 'search', label: 'Cerca', icon: 'search' },
+    { id: 'gems', label: 'Hidden Gems', icon: 'gems' },
+    { id: 'stats', label: 'Statistiche', icon: 'stats' },
+    { id: 'favorites', label: `Preferiti (${favorites.length})`, icon: 'favorites' },
   ];
 
   if (authLoading) {
@@ -191,18 +194,27 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 md:p-8">
+    <div className="flex min-h-screen">
+      <Sidebar
+        tabs={tabs}
+        activeTab={activeTab}
+        onSelectTab={(id) => setActiveTab(id as typeof activeTab)}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        darkMode={darkMode}
+        toggleTheme={toggleTheme}
+        isAuthenticated={!!user}
+        onAuthClick={() => setAuthModalOpen(true)}
+        onLogout={logout}
+        userEmail={user?.email ?? null}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+      <main className="flex-1 p-4 sm:p-6 md:p-8 min-w-0">
       <div className="max-w-2xl mx-auto space-y-5">
         <Header
-          darkMode={darkMode}
-          toggleTheme={toggleTheme}
           username={username}
           onUsernameChange={setUsername}
-          isAuthenticated={!!user}
-          onAuthClick={() => setAuthModalOpen(true)}
-          onLogout={logout}
-          userEmail={user?.email ?? null}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSidebar={() => setSidebarOpen(true)}
         />
 
         {loading && repos.length === 0 ? (
@@ -232,24 +244,6 @@ function AppContent() {
         )}
 
         {repos.length > 0 && <StatisticsPanel repos={repos} />}
-
-        {repos.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors min-h-[40px] ${
-                  activeTab === tab.id
-                    ? 'bg-brand/20 text-brand'
-                    : 'bg-surface-2 text-secondary hover:bg-surface-3'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        )}
 
         {activeTab === 'randomizer' && repos.length > 0 && (
           <>
@@ -365,6 +359,7 @@ function AppContent() {
           </div>
         </footer>
       </div>
+      </main>
 
       <AuthModal
         isOpen={authModalOpen}
