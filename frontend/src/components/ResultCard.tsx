@@ -17,7 +17,7 @@ const ResultCard = forwardRef<HTMLDivElement, ResultCardProps>(
     return (
       <div
         ref={ref}
-        className="bg-surface/80 backdrop-blur rounded-xl border-2 border-transparent bg-clip-padding shadow-xl animate-pop-in animate-glow-pulse [background-image:linear-gradient(var(--color-surface),var(--color-surface)),linear-gradient(135deg,var(--color-brand),var(--color-accent))] [background-origin:border-box] [background-clip:padding-box,border-box]"
+        className="bg-surface/80 backdrop-blur rounded-xl border-2 border-transparent shadow-xl animate-pop-in [background-image:linear-gradient(var(--color-surface),var(--color-surface)),linear-gradient(135deg,var(--color-brand),var(--color-accent))] [background-origin:border-box] [background-clip:padding-box,border-box]"
       >
         <div className="p-5">
           <div className="flex items-center justify-between mb-4">

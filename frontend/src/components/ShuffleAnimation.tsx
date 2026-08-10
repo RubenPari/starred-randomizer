@@ -15,34 +15,28 @@ interface ShuffleAnimationProps {
 
 export default function ShuffleAnimation({ filteredRepos }: ShuffleAnimationProps) {
   const [trail, setTrail] = useState<Repo[]>([]);
-  const [settled, setSettled] = useState(false);
-  const cancelledRef = useRef(false);
+  const runIdRef = useRef(0);
 
   const runShuffle = useCallback(async () => {
     if (filteredRepos.length === 0) return;
-    cancelledRef.current = false;
-    setSettled(false);
-
-    const randomIndex = Math.floor(Math.random() * filteredRepos.length);
-    const finalRepo = filteredRepos[randomIndex];
+    const myRun = ++runIdRef.current;
 
     for (let i = 0; i < SHUFFLE_COUNT; i++) {
-      if (cancelledRef.current) return;
+      if (runIdRef.current !== myRun) return;
       const idx = Math.floor(Math.random() * filteredRepos.length);
       setTrail((prev) => [filteredRepos[idx], ...prev].slice(0, TRAIL_LENGTH));
       await new Promise((resolve) => setTimeout(resolve, SHUFFLE_INTERVAL));
     }
 
-    if (cancelledRef.current) return;
-    setTrail((prev) => [finalRepo, ...prev].slice(0, TRAIL_LENGTH));
-    setSettled(true);
+    if (runIdRef.current !== myRun) return;
     await new Promise((resolve) => setTimeout(resolve, SHUFFLE_FINAL_DELAY));
   }, [filteredRepos]);
 
   useEffect(() => {
     runShuffle();
     return () => {
-      cancelledRef.current = true;
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- plain counter ref, not a DOM node
+      runIdRef.current++;
     };
   }, [runShuffle]);
 
@@ -54,9 +48,7 @@ export default function ShuffleAnimation({ filteredRepos }: ShuffleAnimationProp
     <div className="bg-surface/80 backdrop-blur rounded-xl p-5 border border-brand/30 shadow-lg overflow-hidden">
       <div className="flex items-center gap-3 mb-3">
         <span className="spinner" />
-        <span className="text-sm font-medium text-muted">
-          {settled ? 'Estratto!' : 'Selezione in corso...'}
-        </span>
+        <span className="text-sm font-medium text-muted">Selezione in corso...</span>
       </div>
       <div className="relative">
         <div key={current.full_name + trail.length} className="animate-fade-in">
@@ -69,7 +61,7 @@ export default function ShuffleAnimation({ filteredRepos }: ShuffleAnimationProp
             </span>
           </div>
         </div>
-        {!settled && rest.length > 0 && (
+        {rest.length > 0 && (
           <div className="mt-2 space-y-1 opacity-40">
             {rest.map((repo, i) => (
               <p
