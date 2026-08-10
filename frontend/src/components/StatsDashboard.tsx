@@ -13,7 +13,7 @@ export default function StatsDashboard({ stats, loading, error, onFetch }: Stats
   if (!stats && !loading) return null;
 
   return (
-    <div className="bg-surface/80 backdrop-blur rounded-xl p-5 border border-surface-3/50 shadow-lg animate-fade-in">
+    <div className="bg-surface/80 backdrop-blur rounded-xl p-5 border border-brand/15 shadow-lg hover:shadow-brand/10 animate-fade-in">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold flex items-center gap-2 text-primary">
           <span className="p-1.5 rounded-lg bg-brand/10">

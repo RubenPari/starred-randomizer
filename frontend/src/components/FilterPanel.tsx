@@ -31,7 +31,7 @@ export default function FilterPanel({
   const hasActiveFilters = filters.language || filters.min_stars > 0 || filters.topic || filters.updated_after || !filters.include_archived;
 
   return (
-    <div className="bg-surface/80 backdrop-blur rounded-xl p-5 border border-surface-3/50 shadow-lg hover:shadow-xl transition-shadow animate-fade-in">
+    <div className="bg-surface/80 backdrop-blur rounded-xl p-5 border border-brand/15 shadow-lg hover:shadow-xl hover:shadow-brand/10 transition-shadow animate-fade-in">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <span className="text-2xl font-bold text-accent">{filteredCount}</span>

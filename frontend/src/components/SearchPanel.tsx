@@ -33,7 +33,7 @@ export default function SearchPanel({ filters, topics, onFilterChange, onSearch,
   }, [handleSearch]);
 
   return (
-    <div className="bg-surface/80 backdrop-blur rounded-xl p-5 border border-surface-3/50 shadow-lg animate-fade-in">
+    <div className="bg-surface/80 backdrop-blur rounded-xl p-5 border border-brand/15 shadow-lg hover:shadow-brand/10 animate-fade-in">
       <div className="flex items-center gap-2 mb-4">
         <span className="text-lg font-semibold text-primary">Cerca tra i tuoi starred</span>
       </div>
