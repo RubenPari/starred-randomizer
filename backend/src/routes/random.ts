@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { validateAndFetch } from '../utils/validate-and-fetch';
-import { filterRepos } from '../utils/filters';
+import { filterRepos, parseTopics } from '../utils/filters';
 
 function safeParseInt(val: string | undefined, fallback: number): number {
   if (!val) return fallback;
@@ -9,8 +9,8 @@ function safeParseInt(val: string | undefined, fallback: number): number {
 }
 
 export async function randomRoutes(app: FastifyInstance) {
-  app.get('/api/random/:username', async (request: FastifyRequest<{ Params: { username: string }; Querystring: { language?: string; min_stars?: string; exclude?: string; topic?: string; include_archived?: string; updated_after?: string } }>, reply: FastifyReply) => {
-    const { language, min_stars, exclude, topic, include_archived, updated_after } = request.query;
+  app.get('/api/random/:username', async (request: FastifyRequest<{ Params: { username: string }; Querystring: { language?: string; min_stars?: string; exclude?: string; topic?: string; topics?: string; include_archived?: string; updated_after?: string } }>, reply: FastifyReply) => {
+    const { language, min_stars, exclude, topic, topics, include_archived, updated_after } = request.query;
 
     const result = await validateAndFetch(app, request, reply);
     if (!result) return;
@@ -20,7 +20,7 @@ export async function randomRoutes(app: FastifyInstance) {
     const repos = filterRepos(result.data, {
       language,
       min_stars: safeParseInt(min_stars, 0) || undefined,
-      topic,
+      topics: parseTopics(topics, topic),
       include_archived: includeArchived,
       updated_after,
     });

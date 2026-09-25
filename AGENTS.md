@@ -67,7 +67,7 @@ npm run preview  # vite preview (prod build)
 | `frontend/src/hooks/useRandomRepo.ts` | Custom hook for random repo + history |
 | `frontend/src/hooks/useFavorites.ts` | Favorites: API when auth, localStorage fallback |
 | `frontend/src/hooks/useTheme.ts` | Dark mode toggle with localStorage |
-| `frontend/src/components/` | Reusable components (Header, FilterPanel, ResultCard, HistoryPanel, ShuffleAnimation, SearchPanel, HiddenGems, FavoritesPanel, StatsDashboard, TimelineHeatmap, AuthModal, SettingsPanel, ErrorBoundary, Icons, LanguageBadge, SkeletonCard, StatisticsPanel) |
+| `frontend/src/components/` | Reusable components (Header, FilterPanel, ResultCard, HistoryPanel, ShuffleAnimation, SearchPanel, TopicMultiSelect, HiddenGems, FavoritesPanel, StatsDashboard, TimelineHeatmap, AuthModal, SettingsPanel, ErrorBoundary, Icons, LanguageBadge, SkeletonCard, StatisticsPanel) |
 | `frontend/src/utils/format.ts` | Utility functions (formatStars, timeAgo, handleApiError) |
 | `frontend/src/types.ts` | Frontend types (Repo, HistoryEntry, HiddenGemScore, RepoStats) |
 | `frontend/src/index.css` | Tailwind v4 + custom CSS vars for theming (light/dark) |
@@ -80,9 +80,9 @@ npm run preview  # vite preview (prod build)
 - `GET /api/auth/me` — get current user
 - `PUT /api/auth/me/token` — update GitHub token
 - `GET /api/starred/:username` — returns all starred repos (paginated, cached)
-- `GET /api/random/:username?language=&min_stars=` — returns one random repo matching filters
+- `GET /api/random/:username?language=&min_stars=&topics=` — returns one random repo matching filters (`topics` comma-separated, matches ANY; legacy `topic=` still accepted)
 - `GET /api/hidden-gems/:username?limit=` — returns underrated repos (scored, <100 stars)
-- `GET /api/search/:username?q=&language=&min_stars=&limit=` — full-text search across starred
+- `GET /api/search/:username?q=&language=&min_stars=&topics=&limit=` — full-text search across starred
 - `GET /api/stats/:username` — aggregated statistics (languages, activity, topics)
 - `GET /api/favorites` — user favorites (protected)
 - `POST /api/favorites` — add favorite (protected)

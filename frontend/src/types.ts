@@ -63,7 +63,7 @@ export interface RepoStats {
 export interface RepoFilters {
   language: string;
   min_stars: number;
-  topic: string;
+  topics: string[];
   include_archived: boolean;
   updated_after: string;
 }

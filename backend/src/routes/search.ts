@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { validateAndFetch } from '../utils/validate-and-fetch';
-import { filterRepos } from '../utils/filters';
+import { filterRepos, parseTopics } from '../utils/filters';
 import { config } from '../config';
 import { safeParseInt } from './random';
 
@@ -10,13 +10,14 @@ interface SearchQuery {
   min_stars?: string;
   limit?: string;
   topic?: string;
+  topics?: string;
   include_archived?: string;
   updated_after?: string;
 }
 
 export async function searchRoutes(app: FastifyInstance) {
   app.get('/api/search/:username', async (request: FastifyRequest<{ Params: { username: string }; Querystring: SearchQuery }>, reply: FastifyReply) => {
-    const { q, language, min_stars, limit, topic, include_archived, updated_after } = request.query;
+    const { q, language, min_stars, limit, topic, topics, include_archived, updated_after } = request.query;
 
     if (!q || q.trim().length === 0) {
       return reply.status(400).send({ error: 'Parametro q richiesto' });
@@ -41,7 +42,7 @@ export async function searchRoutes(app: FastifyInstance) {
     const baseFiltered = filterRepos(result.data, {
       language,
       min_stars: safeParseInt(min_stars, 0) || undefined,
-      topic,
+      topics: parseTopics(topics, topic),
       include_archived: includeArchived,
       updated_after,
     });

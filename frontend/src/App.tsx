@@ -31,7 +31,7 @@ const HIDDEN_GEMS_LIMIT = 10;
 function AppContent() {
   const { user, login, register, logout, updateToken, loading: authLoading } = useContext(AuthContext);
   const [username, setUsername] = useState(DEFAULT_USERNAME);
-  const [filters, setFilters] = useState<RepoFilters>({ language: '', min_stars: 0, topic: '', include_archived: true, updated_after: '' });
+  const [filters, setFilters] = useState<RepoFilters>({ language: '', min_stars: 0, topics: [], include_archived: true, updated_after: '' });
   const [shufflePhase, setShufflePhase] = useState(false);
   const [searchResults, setSearchResults] = useState<Repo[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -62,10 +62,11 @@ function AppContent() {
   const loading = starredLoading || randomLoading;
 
   const filteredRepos = useMemo(() => {
+    const selectedTopics = new Set(filters.topics.map((t) => t.toLowerCase()));
     return repos.filter((r) => {
       if (filters.language && r.language?.toLowerCase() !== filters.language.toLowerCase()) return false;
       if (filters.min_stars > 0 && r.stargazers_count < filters.min_stars) return false;
-      if (filters.topic && !r.topics.some((t) => t.toLowerCase() === filters.topic.toLowerCase())) return false;
+      if (selectedTopics.size > 0 && !r.topics.some((t) => selectedTopics.has(t.toLowerCase()))) return false;
       if (!filters.include_archived && r.archived) return false;
       if (filters.updated_after) {
         const d = new Date(filters.updated_after);
@@ -95,7 +96,7 @@ function AppContent() {
 
   const handleRandom = useCallback(async () => {
     setShufflePhase(true);
-    await getRandom(username, filters.language, filters.min_stars, filters.topic, filters.include_archived, filters.updated_after, filteredRepos.length);
+    await getRandom(username, filters.language, filters.min_stars, filters.topics, filters.include_archived, filters.updated_after, filteredRepos.length);
     setShufflePhase(false);
 
     setTimeout(() => {
@@ -104,7 +105,7 @@ function AppContent() {
   }, [username, filters, filteredRepos.length, getRandom]);
 
   const resetFilters = useCallback(() => {
-    setFilters({ language: '', min_stars: 0, topic: '', include_archived: true, updated_after: '' });
+    setFilters({ language: '', min_stars: 0, topics: [], include_archived: true, updated_after: '' });
   }, []);
 
   const handleSelectFromHistory = useCallback((entry: { repo: Repo; timestamp: number }) => {
@@ -121,7 +122,7 @@ function AppContent() {
     setSearchError(null);
     try {
       const params: Record<string, string | boolean | number> = { q: query };
-      if (filters.topic) params.topic = filters.topic;
+      if (filters.topics.length > 0) params.topics = filters.topics.join(',');
       params.include_archived = filters.include_archived;
       if (filters.updated_after) params.updated_after = filters.updated_after;
       const res = await axios.get<Repo[]>(`/api/search/${username}`, { params });

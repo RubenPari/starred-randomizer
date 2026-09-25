@@ -10,7 +10,7 @@ interface UseRandomRepoReturn {
   loading: boolean;
   error: string | null;
   history: HistoryEntry[];
-  getRandom: (username: string, language: string, minStars: number, topic: string, includeArchived: boolean, updatedAfter: string, filteredCount: number) => Promise<void>;
+  getRandom: (username: string, language: string, minStars: number, topics: string[], includeArchived: boolean, updatedAfter: string, filteredCount: number) => Promise<void>;
   clearError: () => void;
   selectFromHistory: (entry: HistoryEntry) => void;
   clearHistory: () => void;
@@ -22,7 +22,7 @@ export function useRandomRepo(): UseRandomRepoReturn {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
-  const getRandom = useCallback(async (username: string, language: string, minStars: number, topic: string, includeArchived: boolean, updatedAfter: string, filteredCount: number) => {
+  const getRandom = useCallback(async (username: string, language: string, minStars: number, topics: string[], includeArchived: boolean, updatedAfter: string, filteredCount: number) => {
     if (filteredCount === 0) {
       setError('Nessun repository disponibile con i filtri selezionati');
       return;
@@ -37,7 +37,7 @@ export function useRandomRepo(): UseRandomRepoReturn {
           language: language || undefined,
           min_stars: minStars || undefined,
           exclude: history.map((e) => e.repo.full_name).join(',') || undefined,
-          topic: topic || undefined,
+          topics: topics.join(',') || undefined,
           include_archived: includeArchived,
           updated_after: updatedAfter || undefined,
         },

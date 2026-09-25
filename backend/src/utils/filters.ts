@@ -3,7 +3,7 @@ import type { Repo } from '../types';
 export interface RepoFilters {
   language?: string;
   min_stars?: number;
-  topic?: string;
+  topics?: string[];
   include_archived?: boolean;
   updated_after?: string;
 }
@@ -20,9 +20,9 @@ export function filterRepos(repos: Repo[], filters: RepoFilters): Repo[] {
     filtered = filtered.filter((r) => r.stargazers_count >= filters.min_stars!);
   }
 
-  if (filters.topic) {
-    const topic = filters.topic.toLowerCase();
-    filtered = filtered.filter((r) => r.topics.some((t) => t.toLowerCase() === topic));
+  if (filters.topics && filters.topics.length > 0) {
+    const selected = new Set(filters.topics.map((t) => t.toLowerCase()));
+    filtered = filtered.filter((r) => r.topics.some((t) => selected.has(t.toLowerCase())));
   }
 
   if (filters.include_archived === false) {
@@ -37,4 +37,13 @@ export function filterRepos(repos: Repo[], filters: RepoFilters): Repo[] {
   }
 
   return filtered;
+}
+
+export function parseTopics(topics?: string, topic?: string): string[] {
+  const all = [topics, topic]
+    .filter((v): v is string => Boolean(v))
+    .flatMap((v) => v.split(','))
+    .map((t) => t.trim().toLowerCase())
+    .filter((t) => t.length > 0);
+  return Array.from(new Set(all));
 }
