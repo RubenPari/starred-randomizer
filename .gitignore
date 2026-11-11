@@ -48,9 +48,6 @@ pnpm-lock.yaml.backup
 # Claude Code
 .claude/
 
-# Docker
-docker/mysql/data/
-
 # Temp
 tmp/
 .tgz
