@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { validateAndFetch } from '../utils/validate-and-fetch';
-import { calculateHiddenGemScore, type HiddenGemScore } from '../utils/hidden-gems';
-import { config } from '../config';
-import { safeParseInt } from './random';
+import { validateAndFetch } from '../utils/validate-and-fetch.js';
+import { calculateHiddenGemScore, type HiddenGemScore } from '../utils/hidden-gems.js';
+import { config } from '../config.js';
+import { safeParseInt } from './random.js';
 
 export async function hiddenGemsRoutes(app: FastifyInstance) {
   app.get('/api/hidden-gems/:username', async (request: FastifyRequest<{ Params: { username: string }; Querystring: { limit?: string } }>, reply: FastifyReply) => {

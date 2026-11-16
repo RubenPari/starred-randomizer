@@ -1,4 +1,4 @@
-import type { Repo } from '../types';
+import type { Repo } from '../types.js';
 
 export interface RepoFilters {
   language?: string;

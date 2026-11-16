@@ -2,25 +2,30 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
-import { config } from './config';
-import dbAndAuthPlugin from './plugins/auth';
-import { starredRoutes } from './routes/starred';
-import { randomRoutes } from './routes/random';
-import { hiddenGemsRoutes } from './routes/hidden-gems';
-import { searchRoutes } from './routes/search';
-import { statsRoutes } from './routes/stats';
-import { favoritesRoutes } from './routes/favorites';
-import { getCacheStats } from './services/github';
+import { fileURLToPath } from 'node:url';
+import { config } from './config.js';
+import dbAndAuthPlugin from './plugins/auth.js';
+import { starredRoutes } from './routes/starred.js';
+import { randomRoutes } from './routes/random.js';
+import { hiddenGemsRoutes } from './routes/hidden-gems.js';
+import { searchRoutes } from './routes/search.js';
+import { statsRoutes } from './routes/stats.js';
+import { favoritesRoutes } from './routes/favorites.js';
+import { getCacheStats } from './services/github.js';
 
-const FRONTEND_DIST = path.resolve(__dirname, '../../frontend/dist');
+const FRONTEND_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../frontend/dist');
 
 const app = Fastify({
+  trustProxy: config.trustProxyHops,
   logger: {
     level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
   },
 });
 
 async function bootstrap() {
+  if (!config.githubToken) {
+    throw new Error('GITHUB_TOKEN non è definito');
+  }
   await app.register(cors, { origin: config.corsOrigin, credentials: true });
 
   try {
@@ -69,7 +74,6 @@ async function bootstrap() {
     process.on(signal, async () => {
       app.log.info(`Received ${signal}, shutting down gracefully...`);
       try {
-        await app.db.end();
         await app.close();
         app.log.info('Server closed successfully');
         process.exit(0);

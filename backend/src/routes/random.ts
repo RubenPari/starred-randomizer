@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { validateAndFetch } from '../utils/validate-and-fetch';
-import { filterRepos, parseTopics } from '../utils/filters';
+import { validateAndFetch } from '../utils/validate-and-fetch.js';
+import { filterRepos, parseTopics } from '../utils/filters.js';
 
 function safeParseInt(val: string | undefined, fallback: number): number {
   if (!val) return fallback;

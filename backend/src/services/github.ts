@@ -1,5 +1,5 @@
-import { config } from '../config';
-import type { Repo, GithubApiResponse, GithubApiError } from '../types';
+import { config } from '../config.js';
+import type { Repo, GithubApiResponse, GithubApiError } from '../types.js';
 
 export type FetchAllStarredResult =
   | { ok: false; status: number; body: unknown }

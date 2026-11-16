@@ -1,5 +1,6 @@
-import { createContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useMemo, useCallback, type ReactNode } from 'react';
 import axios from 'axios';
+import { authClient, AuthActionError } from '../lib/auth-client';
 
 interface User {
   id: string;
@@ -29,29 +30,30 @@ export const AuthContext = createContext<AuthContextType>({
 axios.defaults.withCredentials = true;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    axios.get('/api/auth/me')
-      .then((res) => setUser(res.data))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: session, isPending: loading } = authClient.useSession();
+  const user = useMemo<User | null>(() => session ? {
+    id: session.user.id,
+    email: session.user.email,
+    created_at: new Date(session.user.createdAt).toISOString(),
+  } : null, [session]);
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await axios.post('/api/auth/login', { email, password });
-    setUser(res.data);
+    const { error } = await authClient.signIn.email({ email, password });
+    if (error) throw new AuthActionError(error);
   }, []);
 
   const register = useCallback(async (email: string, password: string) => {
-    const res = await axios.post('/api/auth/register', { email, password });
-    setUser(res.data);
+    const { error } = await authClient.signUp.email({
+      email,
+      password,
+      name: email.split('@')[0],
+    });
+    if (error) throw new AuthActionError(error);
   }, []);
 
   const logout = useCallback(async () => {
-    await axios.post('/api/auth/logout');
-    setUser(null);
+    const { error } = await authClient.signOut();
+    if (error) throw new AuthActionError(error);
   }, []);
 
   const updateToken = useCallback(async (token: string) => {

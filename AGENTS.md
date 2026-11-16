@@ -8,10 +8,12 @@ Frontend proxies `/api` requests to backend during dev via `vite.config.ts`.
 
 ### Backend (`backend/`)
 ```
-npm run dev        # start with ts-node-dev (auto-reload)
+npm run dev        # start with tsx watch (ESM, auto-reload)
 npm run build      # tsc compile
 npm run start      # run compiled output (node dist/index.js)
 npm run typecheck  # tsc --noEmit
+npm run migrate:auth # explicit schema/legacy-account migration (run build first)
+npm test           # build + Node test runner; isolated PostgreSQL via PGlite
 ```
 
 ### Frontend (`frontend/`)
@@ -29,9 +31,12 @@ npm run preview  # vite preview (prod build)
 - Backend reads `.env` from parent directory, not from `backend/.env`
 - No `.env` committed — use `.env.example` as reference
 - `CORS_ORIGIN` optional, defaults to `http://localhost:5173`
-- `JWT_SECRET` required in production (fails fast if using default)
-- `COOKIE_SECRET` required in production (fails fast if using default)
-- PostgreSQL 15+ database required — tables auto-created on first run
+- Node.js 22.12+ required; Docker uses Node.js 24
+- `BETTER_AUTH_SECRET` required in production, at least 32 high-entropy characters
+- `BETTER_AUTH_URL` must be the public HTTPS origin in production
+- `TRUST_PROXY_HOPS` defaults to 0; set only to the verified fixed trusted-proxy count before a proxied deployment (see `GCP_DEPLOY.md`)
+- PostgreSQL 15+ required — run the explicit migration before starting the server
+- Before changing auth/schema/deployment, read the migration and rollback section in `README.md`; legacy account migration must not run implicitly at startup
 - See `.env.example` for all available variables
 
 ## Key Files
@@ -40,7 +45,7 @@ npm run preview  # vite preview (prod build)
 | Path | Role |
 |---|---|
 | `backend/src/index.ts` | Entry point — server setup, CORS, graceful shutdown, health check |
-| `backend/src/config.ts` | Environment config, constants, production secret validation |
+| `backend/src/config.ts` | Environment config, constants, production secret/URL validation |
 | `backend/src/types.ts` | Shared TypeScript types (Repo, API responses) |
 | `backend/src/services/github.ts` | GitHub API client with caching, timeouts, pagination |
 | `backend/src/routes/starred.ts` | `/api/starred/:username` route handler |
@@ -55,7 +60,10 @@ npm run preview  # vite preview (prod build)
 | `backend/src/routes/search.ts` | `/api/search/:username` route handler |
 | `backend/src/routes/stats.ts` | `/api/stats/:username` route handler |
 | `backend/src/routes/favorites.ts` | `/api/favorites` CRUD (protected) |
-| `backend/src/plugins/auth.ts` | Auth plugin: PostgreSQL init, JWT, cookies, /api/auth/* routes |
+| `backend/src/plugins/auth.ts` | Fastify bridge, session identity, route authorization and custom Origin checks |
+| `backend/src/auth.ts` | Better Auth configuration, Argon2, schema mapping and database sessions |
+| `backend/src/auth-migration.ts` | Atomic, idempotent legacy migration; preserves user IDs, passwords, favorites and API tokens |
+| `backend/src/database.ts` | Shared pool configuration, including DB_POOL_MAX |
 
 ### Frontend
 | Path | Role |
@@ -74,10 +82,10 @@ npm run preview  # vite preview (prod build)
 
 ## API Endpoints
 - `GET /api/health` — health check with cache stats
-- `POST /api/auth/register` — create account
-- `POST /api/auth/login` — login, sets httpOnly cookie
-- `POST /api/auth/logout` — logout, clears cookie
-- `GET /api/auth/me` — get current user
+- `POST /api/auth/sign-up/email` — create account
+- `POST /api/auth/sign-in/email` — login, sets httpOnly cookie
+- `POST /api/auth/sign-out` — logout, revokes session
+- `GET /api/auth/get-session` — get current session and user
 - `PUT /api/auth/me/token` — update GitHub token
 - `GET /api/starred/:username` — returns all starred repos (paginated, cached)
 - `GET /api/random/:username?language=&min_stars=&topics=` — returns one random repo matching filters (`topics` comma-separated, matches ANY; legacy `topic=` still accepted)
@@ -94,8 +102,8 @@ npm run preview  # vite preview (prod build)
 - Request timeout (15s default)
 - CORS restricted to `CORS_ORIGIN` env var (default: `http://localhost:5173`) with credentials
 - Graceful shutdown on SIGTERM/SIGINT
-- PostgreSQL database for users and favorites (tables auto-created on startup)
-- JWT authentication via httpOnly cookies (throws UnauthorizedError on missing auth)
+- PostgreSQL database for users, favorites and Better Auth sessions (explicit migration)
+- Better Auth authentication via httpOnly cookies; protected writes also require a trusted Origin
 - argon2 password hashing
 - Fastify logger used throughout (no console.log)
 - Shared `validateAndFetch` helper for username validation + fetch + error handling
@@ -121,4 +129,4 @@ frontend: eslint .              (lint)
 backend: tsc --noEmit           (typecheck only)
 backend: tsc                    (typecheck + emit)
 ```
-No test framework configured. No formatter configured beyond ESLint defaults.
+Backend tests use Node's built-in test runner and ephemeral PGlite PostgreSQL; they skip `.env` and never connect to the configured app database. No frontend test framework or formatter configured beyond ESLint defaults.

@@ -1,9 +1,11 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
-import argon2 from 'argon2';
-import crypto from 'crypto';
-import { Pool } from 'pg';
-import { config } from '../config';
+import { fromNodeHeaders } from 'better-auth/node';
+import type { Pool } from 'pg';
+import { createAuth } from '../auth.js';
+import { assertAuthMigrated } from '../auth-migration.js';
+import { createPool } from '../database.js';
+import { config } from '../config.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -15,130 +17,46 @@ declare module 'fastify' {
   }
 }
 
-interface DbUser {
-  id: string;
-  email: string;
-  password_hash: string;
-  github_token: string | null;
-  created_at: string;
+class UnauthorizedError extends Error {}
+class UntrustedOriginError extends Error {}
+
+interface AuthPluginOptions {
+  // An injected pool is owned by the caller (used by isolated integration tests).
+  pool?: Pool;
 }
 
-interface DbUserPublic {
-  id: string;
-  email: string;
-  created_at: string;
-}
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-async function initSchema(pool: Pool) {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id VARCHAR(36) PRIMARY KEY,
-      email VARCHAR(255) UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      github_token TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS favorites (
-      id VARCHAR(36) PRIMARY KEY,
-      user_id VARCHAR(36) NOT NULL,
-      full_name VARCHAR(255) NOT NULL,
-      repo_json TEXT NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(user_id, full_name),
-      CONSTRAINT fk_favorites_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON favorites(user_id)
-  `);
-}
-
-async function findUserByEmail(pool: Pool, email: string): Promise<DbUser | null> {
-  const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-  return (rows[0] as DbUser | undefined) ?? null;
-}
-
-async function findUserPublicById(pool: Pool, id: string): Promise<DbUserPublic | null> {
-  const { rows } = await pool.query('SELECT id, email, created_at FROM users WHERE id = $1', [id]);
-  return (rows[0] as DbUserPublic | undefined) ?? null;
-}
-
-async function createUser(pool: Pool, id: string, email: string, passwordHash: string): Promise<void> {
-  await pool.query('INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)', [id, email, passwordHash]);
-}
-
-async function updateUserToken(pool: Pool, userId: string, token: string | null): Promise<void> {
-  await pool.query('UPDATE users SET github_token = $1 WHERE id = $2', [token, userId]);
-}
-
-class UnauthorizedError extends Error {
-  constructor() {
-    super('Unauthorized');
-    this.name = 'UnauthorizedError';
+async function dbAndAuthPlugin(app: FastifyInstance, options: AuthPluginOptions) {
+  const pool = options.pool ?? createPool();
+  try {
+    await assertAuthMigrated(pool);
+  } catch (error) {
+    if (!options.pool) await pool.end();
+    throw error;
   }
-}
-
-const cookieOptions = {
-  path: '/',
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
-};
-
-async function dbAndAuthPlugin(app: FastifyInstance) {
-  const pool = new Pool({
-    host: config.dbHost,
-    port: config.dbPort,
-    user: config.dbUser,
-    password: config.dbPassword,
-    database: config.dbName,
-    max: 10,
-    ssl: config.dbSsl ? { rejectUnauthorized: false } : undefined,
-  });
-
-  await initSchema(pool);
-
+  if (!options.pool) app.addHook('onClose', async () => pool.end());
+  const auth = createAuth(pool);
   app.decorate('db', pool);
-
-  await app.register(import('@fastify/cookie'), {
-    secret: config.cookieSecret,
-    parseOptions: {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/',
-      maxAge: config.cookieMaxAge,
-    },
-  });
-
-  await app.register(import('@fastify/jwt'), {
-    secret: config.jwtSecret,
-    cookie: {
-      cookieName: 'token',
-      signed: false,
-    },
-  });
-
   app.decorateRequest('userId', null);
 
   app.addHook('onRequest', async (request) => {
-    try {
-      const decoded = await request.jwtVerify<{ userId: string }>();
-      request.userId = decoded.userId;
-    } catch {
-      request.userId = null;
-    }
+    // The handler itself manages refresh cookies for auth routes. Other routes
+    // only read sessions; they must not silently refresh without forwarding cookies.
+    if (request.url.split('?')[0].startsWith('/api/auth/')) return;
+    const session = await auth.api.getSession({
+      headers: fromNodeHeaders(request.headers),
+      query: { disableRefresh: true },
+    });
+    request.userId = session?.user.id ?? null;
   });
 
   app.decorate('requireAuth', async function (request: FastifyRequest, _reply: FastifyReply) {
-    if (!request.userId) {
-      throw new UnauthorizedError();
+    if (!request.userId) throw new UnauthorizedError();
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
+      // Custom application endpoints are outside Better Auth's CSRF middleware.
+      const origin = request.headers.origin;
+      if (!origin || ![config.corsOrigin, config.authUrl].includes(origin)) {
+        throw new UntrustedOriginError();
+      }
     }
   });
 
@@ -146,92 +64,50 @@ async function dbAndAuthPlugin(app: FastifyInstance) {
     if (error instanceof UnauthorizedError) {
       return reply.status(401).send({ error: 'Autenticazione richiesta' });
     }
+    if (error instanceof UntrustedOriginError) {
+      return reply.status(403).send({ error: 'Origine della richiesta non consentita' });
+    }
+    const status = error.statusCode;
+    if (status && status >= 400 && status < 500) {
+      return reply.status(status).send({ error: 'Richiesta non valida' });
+    }
     app.log.error(error);
     return reply.status(500).send({ error: 'Errore interno del server' });
   });
 
-  app.post('/api/auth/register', async (request: FastifyRequest, reply: FastifyReply) => {
-    const body = request.body as { email: string; password: string };
-    const { email, password } = body;
-
-    if (!email || !EMAIL_REGEX.test(email)) {
-      return reply.status(400).send({ error: 'Email non valida' });
-    }
-
-    if (!password || password.length < config.minPasswordLength) {
-      return reply.status(400).send({ error: `La password deve avere almeno ${config.minPasswordLength} caratteri` });
-    }
-
-    const existing = await findUserByEmail(pool, email.toLowerCase());
-    if (existing) {
-      return reply.status(409).send({ error: 'Email già registrata' });
-    }
-
-    const passwordHash = await argon2.hash(password);
-    const id = crypto.randomUUID();
-
-    await createUser(pool, id, email.toLowerCase(), passwordHash);
-
-    const token = app.jwt.sign({ userId: id }, { expiresIn: config.jwtExpiry });
-    reply.setCookie('token', token, cookieOptions);
-
-    return { id, email: email.toLowerCase() };
+  app.route({
+    method: ['GET', 'POST'],
+    url: '/api/auth/*',
+    async handler(request, reply) {
+      const headers = fromNodeHeaders(request.headers);
+      headers.set('x-starred-client-ip', request.ip);
+      const response = await auth.handler(new Request(new URL(request.url, config.authUrl), {
+        method: request.method,
+        headers,
+        ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
+      }));
+      reply.status(response.status);
+      response.headers.forEach((value, key) => {
+        if (key !== 'set-cookie') reply.header(key, value);
+      });
+      const cookies = response.headers.getSetCookie();
+      if (cookies.length) reply.header('set-cookie', cookies);
+      return reply.send(response.body ? await response.text() : null);
+    },
   });
 
-  app.post('/api/auth/login', async (request: FastifyRequest, reply: FastifyReply) => {
-    const body = request.body as { email: string; password: string };
-    const { email, password } = body;
-
-    if (!email || !password) {
-      return reply.status(400).send({ error: 'Email e password sono obbligatori' });
-    }
-
-    const user = await findUserByEmail(pool, email.toLowerCase());
-    if (!user) {
-      return reply.status(401).send({ error: 'Credenziali non valide' });
-    }
-
-    const valid = await argon2.verify(user.password_hash, password);
-    if (!valid) {
-      return reply.status(401).send({ error: 'Credenziali non valide' });
-    }
-
-    const token = app.jwt.sign({ userId: user.id }, { expiresIn: config.jwtExpiry });
-    reply.setCookie('token', token, cookieOptions);
-
-    return { id: user.id, email: user.email };
-  });
-
-  app.post('/api/auth/logout', async (_request: FastifyRequest, reply: FastifyReply) => {
-    reply.clearCookie('token', cookieOptions);
-    return { message: 'Logout effettuato' };
-  });
-
-  app.get('/api/auth/me', async (request: FastifyRequest, reply: FastifyReply) => {
-    if (!request.userId) {
-      return reply.status(401).send({ error: 'Non autenticato' });
-    }
-
-    const user = await findUserPublicById(pool, request.userId);
-    if (!user) {
-      reply.clearCookie('token', cookieOptions);
-      return reply.status(401).send({ error: 'Utente non trovato' });
-    }
-
-    return user;
-  });
-
-  app.put('/api/auth/me/token', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.put('/api/auth/me/token', async (request, reply) => {
+    const session = await auth.api.getSession({
+      headers: fromNodeHeaders(request.headers),
+      query: { disableRefresh: true },
+    });
+    request.userId = session?.user.id ?? null;
     await app.requireAuth(request, reply);
-
-    const body = request.body as { token?: string };
-    const { token } = body;
-
-    if (token === undefined) {
-      return reply.status(400).send({ error: 'Token mancante' });
+    const token = (request.body as { token?: unknown } | null)?.token;
+    if (typeof token !== 'string' || token.length > 1024) {
+      return reply.status(400).send({ error: 'Token mancante o non valido' });
     }
-
-    await updateUserToken(pool, request.userId!, token || null);
+    await pool.query('UPDATE users SET github_token = $1 WHERE id = $2', [token || null, request.userId]);
     return { message: 'Token aggiornato' };
   });
 }

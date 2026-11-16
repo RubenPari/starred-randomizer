@@ -1,15 +1,15 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { fetchAllStarred } from '../services/github';
-import { isValidGithubUsername } from './validation';
-import { getGithubErrorMessage } from './errors';
-import { getUserToken } from './user-token';
-import type { Repo } from '../types';
+import { fetchAllStarred } from '../services/github.js';
+import { isValidGithubUsername } from './validation.js';
+import { getGithubErrorMessage } from './errors.js';
+import { getUserToken } from './user-token.js';
+import type { Repo } from '../types.js';
 
 export async function validateAndFetch(
   app: FastifyInstance,
   request: FastifyRequest<{ Params: { username: string } }>,
   reply: FastifyReply
-): Promise<{ data: import('../types').Repo[] } | null> {
+): Promise<{ data: import('../types.js').Repo[] } | null> {
   const { username } = request.params;
 
   app.log.info(`Request for username: ${username}`);

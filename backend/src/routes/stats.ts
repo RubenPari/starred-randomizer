@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { validateAndFetch } from '../utils/validate-and-fetch';
-import { config } from '../config';
+import { validateAndFetch } from '../utils/validate-and-fetch.js';
+import { config } from '../config.js';
 
 interface StarActivity {
   date: string;

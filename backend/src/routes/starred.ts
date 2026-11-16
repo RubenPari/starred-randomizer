@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { validateAndFetch } from '../utils/validate-and-fetch';
+import { validateAndFetch } from '../utils/validate-and-fetch.js';
 
 export async function starredRoutes(app: FastifyInstance) {
   app.get('/api/starred/:username', async (request: FastifyRequest<{ Params: { username: string } }>, reply: FastifyReply) => {

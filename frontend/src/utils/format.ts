@@ -48,6 +48,9 @@ function isAxiosLikeError(err: unknown): err is AxiosLikeError {
 }
 
 export function handleApiError(err: unknown): string {
+  if (err instanceof Error && err.name === 'AuthActionError') {
+    return err.message;
+  }
   if (isAxiosLikeError(err)) {
     if (err.response?.data?.error) {
       return err.response.data.error;

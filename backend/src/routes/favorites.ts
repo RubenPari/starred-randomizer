@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import crypto from 'crypto';
-import type { Repo } from '../types';
+import type { Repo } from '../types.js';
 
 interface FavoriteBody {
   repo: Repo;

@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { validateAndFetch } from '../utils/validate-and-fetch';
-import { filterRepos, parseTopics } from '../utils/filters';
-import { config } from '../config';
-import { safeParseInt } from './random';
+import { validateAndFetch } from '../utils/validate-and-fetch.js';
+import { filterRepos, parseTopics } from '../utils/filters.js';
+import { config } from '../config.js';
+import { safeParseInt } from './random.js';
 
 interface SearchQuery {
   q: string;
@@ -31,7 +31,7 @@ export async function searchRoutes(app: FastifyInstance) {
     if (!result) return;
 
     const query = q.toLowerCase();
-    const matchesQuery = (repo: import('../types').Repo) =>
+    const matchesQuery = (repo: import('../types.js').Repo) =>
       repo.full_name.toLowerCase().includes(query) ||
       (repo.description?.toLowerCase() ?? '').includes(query) ||
       repo.topics.some((t) => t.toLowerCase().includes(query)) ||
